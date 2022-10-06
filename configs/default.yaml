@@ -1,0 +1,50 @@
+#####Hydra settings#####
+hydra:
+    job:
+        chdir: true
+        name: "_debug"
+    run:
+        dir: ${out_dir}/${hydra.job.name}
+    sweep:
+        dir: ${out_dir}/${hydra.job.name}
+        subdir: ${list_to_string:${hydra.overrides.task}}
+    job_logging:
+        handlers:
+            file:
+                filename: ${hydra.runtime.output_dir}/run.log
+
+#####General settings#####
+out_dir: /data/sciebo/experiments/FSDLIP/
+deterministic: true
+seed: 1234567
+device: "cuda"
+num_workers: -1
+
+#####Extern settings#####
+defaults:
+    - network: nafn
+    - dataset: mnist
+    - override hydra/job_logging: colorlog
+    - override hydra/hydra_logging: colorlog
+
+#####Network settings#####
+checkpoint: null
+
+######Data settings#####
+validation_split_percent: 20
+training_batch_size: 32
+shuffle_training_data: true
+drop_last_training_batch: false
+validation_batch_size: ${training_batch_size}
+shuffle_validation_data: false
+drop_last_validation_batch: false
+test_batch_size: ${training_batch_size}
+shuffle_test_data: false
+drop_last_test_batch: true
+
+#####Run settings#####
+optimizer_lr: 1e-2
+epochs: 15
+training_batch_count: -1
+validation_batch_count: -1
+test_batch_count: -1

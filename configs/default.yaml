@@ -14,7 +14,7 @@ hydra:
                 filename: ${hydra.runtime.output_dir}/run.log
 
 #####General settings#####
-out_dir: /data/sciebo/experiments/FSDLIP/
+out_dir: /data/sciebo/experiments/LearnedRadonFilters/
 deterministic: true
 seed: 1234567
 device: "cuda"
@@ -22,8 +22,6 @@ num_workers: -1
 
 #####Extern settings#####
 defaults:
-    - network: nafn
-    - dataset: mnist
     - override hydra/job_logging: colorlog
     - override hydra/hydra_logging: colorlog
 
@@ -41,10 +39,13 @@ drop_last_validation_batch: false
 test_batch_size: ${training_batch_size}
 shuffle_test_data: false
 drop_last_test_batch: true
+img_size: 28
+sino_angles: null
+sino_positions: null
 
 #####Run settings#####
-optimizer_lr: 1e-2
-epochs: 15
+optimizer_lr: 1e-3
+epochs: 3
 training_batch_count: -1
 validation_batch_count: -1
 test_batch_count: -1

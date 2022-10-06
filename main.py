@@ -21,10 +21,8 @@ import torch
 import torch.utils.tensorboard
 import torch.version
 
-from datamodule import MNISTDataModule
-from lodopab_datamodule import LoDoPaBDataModule
-from model import NAFNDissipatingMinimizer
-
+from learned_filter_model import LearnedFilterModel
+from mnist_datamodule import MNISTDataModule
 
 
 #Custom version of pytorch lightnings TensorBoardLogger, to allow manipulation of internal logging settings
@@ -70,10 +68,10 @@ def main(config: omegaconf.DictConfig) -> None:
 
     #Create model and load data
     if config.checkpoint != None:
-        model = ???.load_from_checkpoint(os.path.abspath(os.path.join("../../" if hydra.core.hydra_config.HydraConfig.get().mode == hydra.types.RunMode.MULTIRUN else "../", config.checkpoint)), config=config)
+        model = LearnedFilterModel.load_from_checkpoint(os.path.abspath(os.path.join("../../" if hydra.core.hydra_config.HydraConfig.get().mode == hydra.types.RunMode.MULTIRUN else "../", config.checkpoint)), config=config)
     else:
-        model = ???(config)
-    datamodule = ???(config)
+        model = LearnedFilterModel(config)
+    datamodule = MNISTDataModule(config)
 
     #Execute training and testing
     with warnings.catch_warnings():
@@ -86,9 +84,9 @@ def main(config: omegaconf.DictConfig) -> None:
             devices=-1, 
             max_epochs=config.epochs, 
             logger=CustomTensorBoardLogger(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir, None, ""), 
-            limit_train_batches=int(config.training_batch_count), 
-            limit_val_batches=int(config.validation_batch_count), 
-            limit_test_batches=int(config.test_batch_count))
+            limit_train_batches=int(config.training_batch_count) if config.training_batch_count != -1 else len(datamodule.train_dataloader()), 
+            limit_val_batches=int(config.validation_batch_count) if config.validation_batch_count != -1 else len(datamodule.val_dataloader()), 
+            limit_test_batches=int(config.test_batch_count) if config.test_batch_count != -1 else len(datamodule.test_dataloader()))
         trainer.fit(model, datamodule)
         trainer.test(model, datamodule)
     

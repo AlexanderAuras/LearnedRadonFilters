@@ -10,6 +10,7 @@ import hydra.core.hydra_config
 import omegaconf
 #Register additional resolver for log path
 omegaconf.OmegaConf.register_new_resolver("list_to_string", lambda o: functools.reduce(lambda acc, x: acc+", "+x.replace("\"","").replace("/"," "), o, "")[2:])
+omegaconf.OmegaConf.register_new_resolver("linspace", lambda p: (torch.linspace(p[0], p[1], p[2])+0.01).tolist())
 
 import pytorch_lightning
 import pytorch_lightning.accelerators
@@ -81,7 +82,6 @@ def main(config: omegaconf.DictConfig) -> None:
             deterministic=config.deterministic, 
             callbacks=[pytorch_lightning.callbacks.ModelCheckpoint(dirpath=".")], 
             accelerator="gpu" if config.device == "cuda" else None, 
-            devices=-1, 
             max_epochs=config.epochs, 
             logger=CustomTensorBoardLogger(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir, None, ""), 
             limit_train_batches=int(config.training_batch_count) if config.training_batch_count != -1 else len(datamodule.train_dataloader()), 

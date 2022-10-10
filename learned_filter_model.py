@@ -15,6 +15,7 @@ import torch.utils.tensorboard
 
 import torchmetrics
 
+import matplotlib
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
@@ -73,7 +74,9 @@ class LearnedFilterModel(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.config.optimizer_lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.config.optimizer_lr)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, 2.0)
+        return [optimizer], [{"scheduler": scheduler, "interval": "epoch"}]
     
 
 
@@ -133,8 +136,8 @@ class LearnedFilterModel(pl.LightningModule):
         self.test_loss_metric.update(F.mse_loss(y, z))
 
         #Return data for logging purposes
-        if batch_idx == 0:
-            return {"x": x, "y": y, "z": z}
+        if batch_idx == 1:
+            return {"sino": x, "gt": y, "recon": z}
         return {}
 
 
@@ -145,23 +148,32 @@ class LearnedFilterModel(pl.LightningModule):
             #Log mean test metrics
             logger.add_scalar("test/loss", self.test_loss_metric.compute().item(), 0)
 
+            i = 1
+
+            #filter function
             figure = plt.figure()
             axes: mpl_toolkits.mplot3d.Axes3D = figure.add_subplot(1, 1, 1, projection="3d")
             plot_x, plot_y = torch.meshgrid(torch.arange(self.filter_params.shape[0]), torch.arange(self.filter_params.shape[1]), indexing="ij")
             axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"))
+            plt.tight_layout()
             logger.add_figure("parameters/filter_coefficients", figure, 0)
-            figure = plt.figure()
-            plt.imshow(utils.export_image_from_batch(typing.cast(dict[str,torch.Tensor], outputs[0])["x"].mT)[0])
-            plt.colorbar()
-            plt.tight_layout()
-            logger.add_figure("test/x", figure, 0)
-            figure = plt.figure()
-            plt.imshow(utils.export_image_from_batch(typing.cast(dict[str,torch.Tensor], outputs[0])["y"])[0])
-            plt.colorbar()
-            plt.tight_layout()
-            logger.add_figure("test/y", figure, 0)
-            figure = plt.figure()
-            plt.imshow(utils.export_image_from_batch(typing.cast(dict[str,torch.Tensor], outputs[0])["z"])[0])
-            plt.colorbar()
-            plt.tight_layout()
-            logger.add_figure("test/z", figure, 0)
+
+            sino = self.extract_tensor(outputs, "sino")
+            fsino = radon.radon_filter(sino.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, self.filter_params)[0,0]
+            gt = self.extract_tensor(outputs, "gt")
+            recon = self.extract_tensor(outputs, "recon")
+            self.log_img(logger, "test/sino", sino.mT)
+            self.log_img(logger, "test/fsino", fsino.mT)
+            self.log_img(logger, "test/gt", gt)
+            self.log_img(logger, "test/recon", recon)
+
+
+    def extract_tensor(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor]]], name: str) -> torch.Tensor:
+        return typing.cast(list[dict[str,torch.Tensor]], outputs)[1][name][0,0]
+
+    def log_img(self, logger: typing.Any, tag: str, img: torch.Tensor) -> None:
+        figure = plt.figure()
+        plt.imshow(img.detach().to("cpu"))
+        plt.colorbar()
+        plt.tight_layout()
+        logger.add_figure(tag, figure, 0)

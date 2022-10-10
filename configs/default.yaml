@@ -40,7 +40,7 @@ test_batch_size: ${training_batch_size}
 shuffle_test_data: false
 drop_last_test_batch: true
 img_size: 28
-sino_angles: null
+sino_angles: ${linspace:[0.0,3.14159265359,100]}
 sino_positions: null
 
 #####Run settings#####

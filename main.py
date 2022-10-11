@@ -10,7 +10,7 @@ import hydra.core.hydra_config
 import omegaconf
 #Register additional resolver for log path
 omegaconf.OmegaConf.register_new_resolver("list_to_string", lambda o: functools.reduce(lambda acc, x: acc+", "+x.replace("\"","").replace("/"," "), o, "")[2:])
-omegaconf.OmegaConf.register_new_resolver("linspace", lambda p: (torch.linspace(p[0], p[1], p[2])+0.01).tolist())
+omegaconf.OmegaConf.register_new_resolver("eval", lambda c: eval(c))
 
 import pytorch_lightning
 import pytorch_lightning.accelerators
@@ -24,6 +24,7 @@ import torch.version
 
 from learned_filter_model import LearnedFilterModel
 from mnist_datamodule import MNISTDataModule
+from ellipses_datamodule import EllipsesDataModule
 
 
 #Custom version of pytorch lightnings TensorBoardLogger, to allow manipulation of internal logging settings
@@ -72,7 +73,12 @@ def main(config: omegaconf.DictConfig) -> None:
         model = LearnedFilterModel.load_from_checkpoint(os.path.abspath(os.path.join("../../" if hydra.core.hydra_config.HydraConfig.get().mode == hydra.types.RunMode.MULTIRUN else "../", config.checkpoint)), config=config)
     else:
         model = LearnedFilterModel(config)
-    datamodule = MNISTDataModule(config)
+    if config.dataset.name == "MNIST":
+        datamodule = MNISTDataModule(config)
+    elif config.dataset.name == "ellipses":
+        datamodule = EllipsesDataModule(config)
+    else:
+        raise NotImplementedError()
 
     #Execute training and testing
     with warnings.catch_warnings():

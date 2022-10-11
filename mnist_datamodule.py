@@ -17,7 +17,7 @@ class MNISTDataModule(pl.LightningDataModule):
     def train_dataloader(self) -> torch.utils.data.DataLoader:
         training_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Resize((self.config.img_size, self.config.img_size))
+            transforms.Resize((self.config.dataset.img_size, self.config.dataset.img_size))
         ])
         training_dataset = torchvision.datasets.MNIST("/data/datasets/", train=True, transform=training_transform, download=True)
         _, training_dataset = torch.utils.data.random_split(training_dataset, [int(len(training_dataset)*self.config.validation_split_percent/100.0), len(training_dataset)-int(len(training_dataset)*self.config.validation_split_percent/100.0)])
@@ -28,7 +28,7 @@ class MNISTDataModule(pl.LightningDataModule):
     def val_dataloader(self) -> torch.utils.data.DataLoader:
         validation_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Resize((self.config.img_size, self.config.img_size))
+            transforms.Resize((self.config.dataset.img_size, self.config.dataset.img_size))
         ])
         validation_dataset = torchvision.datasets.MNIST("/data/datasets/", train=True, transform=validation_transform, download=True)
         validation_dataset, _ = torch.utils.data.random_split(validation_dataset, [int(len(validation_dataset)*self.config.validation_split_percent/100.0), len(validation_dataset)-int(len(validation_dataset)*self.config.validation_split_percent/100.0)])
@@ -39,7 +39,7 @@ class MNISTDataModule(pl.LightningDataModule):
     def test_dataloader(self) -> torch.utils.data.DataLoader:
         test_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Resize((self.config.img_size, self.config.img_size))
+            transforms.Resize((self.config.dataset.img_size, self.config.dataset.img_size))
         ])
         test_dataset = torchvision.datasets.MNIST("/data/datasets/", train=False, transform=test_transform, download=True)
         return torch.utils.data.DataLoader(test_dataset, drop_last=self.config.drop_last_test_batch, batch_size=self.config.test_batch_size, shuffle=self.config.shuffle_test_data, num_workers=self.config.num_workers)

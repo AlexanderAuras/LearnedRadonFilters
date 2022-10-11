@@ -22,8 +22,10 @@ num_workers: -1
 
 #####Extern settings#####
 defaults:
+    - dataset: ellipses
     - override hydra/job_logging: colorlog
     - override hydra/hydra_logging: colorlog
+    - _self_
 
 #####Network settings#####
 checkpoint: null
@@ -39,9 +41,10 @@ drop_last_validation_batch: false
 test_batch_size: ${training_batch_size}
 shuffle_test_data: false
 drop_last_test_batch: true
-img_size: 28
-sino_angles: ${linspace:[0.0,3.14159265359,100]}
+
+sino_angles: ${eval:"torch.linspace(0.0,3.14159265359,257)[:-1].tolist()"}
 sino_positions: null
+noise_level: 1.0
 
 #####Run settings#####
 optimizer_lr: 1e-3

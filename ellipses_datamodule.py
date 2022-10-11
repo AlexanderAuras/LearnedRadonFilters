@@ -1,6 +1,7 @@
 #pyright: reportGeneralTypeIssues=false
 
 from math import atan, cos, sin, tan
+import sys
 
 import omegaconf
 import pytorch_lightning as pl
@@ -46,14 +47,19 @@ class _EllipsesDataset(torch.utils.data.Dataset):
             ax.add_artist(ellipse)
             ellipse.set_clip_box(ax.bbox)
             ellipse.set_alpha(self.ellipse_alpha[e_idx].item())
+            ellipse.set_antialiased(False)
         ax.axis("off")
         ax.set_xlim(0.0, self.img_size)
         ax.set_ylim(0.0, self.img_size)
         fig.add_axes(ax)
         fig.canvas.draw()
-        img = torch.from_numpy(1.0-np.array(fig.canvas.renderer._renderer)[:,:,3])
+        img = torch.from_numpy(np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8).copy())
+        if sys.platform == "win32":
+            img = 1.0-torch.swapaxes(img.reshape(self.img_size,self.img_size,4), 0, 2).to(torch.float32)[3:4]/255.0
+        else:
+            img = torch.swapaxes(img.reshape(self.img_size,self.img_size,4), 0, 2).to(torch.float32)[0:1]/255.0
         plt.close()
-        return img.unsqueeze(0)
+        return img
 
 
 

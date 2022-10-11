@@ -17,7 +17,8 @@ class _EllipsesDataset(torch.utils.data.Dataset):
     def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1):
         self.img_count = img_count
         self.img_size = img_size
-        self.ellipses_count = ellipses_count
+        #self.ellipses_count = ellipses_count
+        self.ellipses_count = torch.poisson(torch.full((img_count,), ellipses_count).to(torch.float32)).to(torch.int32)
         self.ellipses_size = ellipses_size
         self.ellipses_size_min = ellipses_size_min
         self.ellipse_width_aa = torch.rand((img_count*ellipses_count,))*max(0.0, self.ellipses_size-self.ellipses_size_min)+self.ellipses_size_min
@@ -34,8 +35,8 @@ class _EllipsesDataset(torch.utils.data.Dataset):
         fig = plt.figure(figsize=(self.img_size,self.img_size), dpi=1)
         ax = fig.add_axes([0.0,0.0,1.0,1.0])
         ellipse_func = lambda w, h, a, t: (w/2.0*cos(t)*cos(a)-h/2.0*sin(t)*sin(a), w/2.0*cos(t)*sin(a)+h/2.0*sin(t)*cos(a))
-        for i in range(self.ellipses_count):
-            e_idx = idx*self.ellipses_count+i
+        for i in range(self.ellipses_count[idx]):
+            e_idx = idx*self.ellipses_count[idx]+i
             args = (self.ellipse_width_aa[e_idx].item(), self.ellipse_height_aa[e_idx].item(), self.ellipse_angle[e_idx].item()/180.0*torch.pi)
             t = atan(-self.ellipse_height_aa[e_idx].item()*tan(self.ellipse_angle[e_idx].item()/180.0*torch.pi)/self.ellipse_width_aa[e_idx].item())
             ellipse_width = max(ellipse_func(*args, t)[0], ellipse_func(*args, t+torch.pi)[0])-min(ellipse_func(*args, t)[0], ellipse_func(*args, t+torch.pi)[0])
@@ -47,6 +48,8 @@ class _EllipsesDataset(torch.utils.data.Dataset):
             ax.add_artist(ellipse)
             ellipse.set_clip_box(ax.bbox)
             ellipse.set_alpha(self.ellipse_alpha[e_idx].item())
+            ellipse.set_facecolor("black")
+            ellipse.set_edgecolor(None)
             ellipse.set_antialiased(False)
         ax.axis("off")
         ax.set_xlim(0.0, self.img_size)

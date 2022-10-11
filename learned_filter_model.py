@@ -15,13 +15,10 @@ import torch.utils.tensorboard
 
 import torchmetrics
 
-import matplotlib
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
 import radon
-
-import utils
 
 
 

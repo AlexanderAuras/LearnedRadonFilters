@@ -16,6 +16,8 @@ import torch.utils.tensorboard
 
 import torchmetrics
 
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
@@ -81,6 +83,13 @@ class LearnedFilterModel(pl.LightningModule):
         if stack[2].function == "summarize" and stack[2].filename.endswith("pytorch_lightning/utilities/model_summary/model_summary.py"):
             return filter(lambda x: not x[0].endswith("metric"), super().named_children())
         return super().named_children()
+
+    #TODO Gaussian on image
+    #TODO Set 0 and pi/2 to ramp or other angle?
+    #TODO Rotate everything?
+    #TODO Compare to ramp
+    #TODO Single ellipse, changes w.r.t. angle of ellipse
+    #TODO Paper: Remove zeros
 
 
 
@@ -178,10 +187,15 @@ class LearnedFilterModel(pl.LightningModule):
             figure = plt.figure()
             axes: mpl_toolkits.mplot3d.Axes3D = figure.add_subplot(1, 1, 1, projection="3d")
             plot_x, plot_y = torch.meshgrid(torch.arange(self.filter_params.shape[0]), torch.arange(self.filter_params.shape[1]), indexing="ij")
+            axes.set_xlabel("Angle")
+            axes.set_xticks(torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//5).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//5).to(torch.float32).tolist())))
+            axes.set_ylabel("Frequency")
+            axes.set_yticks(torch.arange(0, self.filter_params.shape[1], self.filter_params.shape[1]//5).to(torch.float32).tolist())
+            axes.set_zlabel("Filter value")
+            axes.set_zlim(0.0, 2.0)
             axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"), alpha=1.0)
-            plt.tight_layout()
             logger.add_figure("validation/filter_coefficients", figure, self.global_step)
-            log_3d(logger, "validation/filter_coefficients", self.filter_params.mT, self.global_step)
+            log_3d(logger, "validation/filter_coefficients", self.filter_params, self.global_step, 1.0)
 
             #Log examples
             sinogram = extract_tensor(outputs, "sinogram", 0)
@@ -238,13 +252,17 @@ class LearnedFilterModel(pl.LightningModule):
 
             #Log filter coefficients
             figure = plt.figure()
-            axes: mpl_toolkits.mplot3d.Axes3D = figure.add_subplot(1, 1, 1, projection="3d")
+            axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
+            axes.set_xlabel("Angle")
+            axes.set_xticks(torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//5).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//5).to(torch.float32).tolist())))
+            axes.set_ylabel("Frequency")
+            axes.set_yticks(torch.arange(0, self.filter_params.shape[1], self.filter_params.shape[1]//5).to(torch.float32).tolist())
+            axes.set_zlabel("Filter value")
             axes.set_zlim(0.0, 2.0)
             plot_x, plot_y = torch.meshgrid(torch.arange(self.filter_params.shape[0]), torch.arange(self.filter_params.shape[1]), indexing="ij")
             axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"), alpha=1.0)
-            plt.tight_layout()
             logger.add_figure("test/filter_coefficients", figure, 0)
-            log_3d(logger, "test/filter_coefficients", self.filter_params.mT, 0)
+            log_3d(logger, "test/filter_coefficients", self.filter_params, 0, 1.0)
 
             #Log examples
             for i in range(10):

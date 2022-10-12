@@ -1,12 +1,13 @@
 #pyright: reportGeneralTypeIssues=false
 
 from math import atan, cos, sin, tan
-import sys
 
 import omegaconf
 import pytorch_lightning as pl
 import torch
 import torch.utils.data
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.patches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,6 +31,10 @@ class _EllipsesDataset(torch.utils.data.Dataset):
         self.ellipse_y_raw = torch.rand((real_ellipses_count,))
         self.ellipse_angle = torch.rand((real_ellipses_count,))*360.0
         self.ellipse_alpha = torch.rand((real_ellipses_count,))*0.9+0.1
+
+        self.channel_selection_mode = "alpha"
+        if self[0][0].sum() == self.img_size*self.img_size:
+            self.channel_selection_mode = "no_alpha"
 
     def __len__(self) -> int:
         return self.img_count
@@ -61,11 +66,12 @@ class _EllipsesDataset(torch.utils.data.Dataset):
         fig.add_axes(ax)
         fig.canvas.draw()
         img = torch.from_numpy(np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8).copy())
-        if sys.platform == "win32":
+        if self.channel_selection_mode == "noalpha":
             img = 1.0-torch.swapaxes(img.reshape(self.img_size,self.img_size,4), 0, 2).to(torch.float32)[3:4]/255.0
+        elif self.channel_selection_mode == "alpha":
+            img = torch.swapaxes(img.reshape(self.img_size,self.img_size,4), 0, 2).to(torch.float32)[0:1]/255.0
         else:
-            img = 1.0-torch.swapaxes(img.reshape(self.img_size,self.img_size,4), 0, 2).to(torch.float32)[3:4]/255.0
-            #img = torch.swapaxes(img.reshape(self.img_size,self.img_size,4), 0, 2).to(torch.float32)[0:1]/255.0
+            raise NotImplementedError()
         plt.close()
         return img, 0
 

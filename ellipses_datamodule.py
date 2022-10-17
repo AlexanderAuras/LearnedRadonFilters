@@ -18,23 +18,26 @@ class _EllipsesDataset(torch.utils.data.Dataset):
     def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1):
         self.img_count = img_count
         self.img_size = img_size
-        #self.ellipses_count = torch.ones((img_count,), dtype=torch.int32)
         self.ellipses_count = torch.poisson(torch.full((img_count,), ellipses_count).to(torch.float32)).to(torch.int32)
         real_ellipses_count = self.ellipses_count.sum()
-        self.ellipses_size = ellipses_size
-        self.ellipses_size_min = ellipses_size_min
-        self.ellipse_width_aa = torch.rand((real_ellipses_count,))*max(0.0, self.ellipses_size-self.ellipses_size_min)+self.ellipses_size_min
-        self.ellipse_height_aa = torch.rand((real_ellipses_count,))*max(0.0, self.ellipses_size-self.ellipses_size_min)+self.ellipses_size_min
-        #self.ellipse_x_raw = torch.full((real_ellipses_count,), 0.5)
-        #self.ellipse_y_raw = torch.full((real_ellipses_count,), 0.5)
+        self.ellipse_width_aa = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
+        self.ellipse_height_aa = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
         self.ellipse_x_raw = torch.rand((real_ellipses_count,))
         self.ellipse_y_raw = torch.rand((real_ellipses_count,))
         self.ellipse_angle = torch.rand((real_ellipses_count,))*360.0
         self.ellipse_alpha = torch.rand((real_ellipses_count,))*0.9+0.1
 
+        #self.ellipses_count = torch.ones((img_count,), dtype=torch.int32)
+        #self.ellipse_width_aa = torch.full((img_count,), 0.75)
+        #self.ellipse_height_aa = torch.full((img_count,), 0.75)
+        #self.ellipse_x_raw = torch.full((img_count,), 0.5)
+        #self.ellipse_y_raw = torch.full((img_count,), 0.5)
+        #self.ellipse_angle = torch.zeros((img_count,))
+        #self.ellipse_alpha = torch.ones((img_count,))
+
         self.channel_selection_mode = "alpha"
         if self[0][0].sum() == self.img_size*self.img_size:
-            self.channel_selection_mode = "no_alpha"
+            self.channel_selection_mode = "noalpha"
 
     def __len__(self) -> int:
         return self.img_count

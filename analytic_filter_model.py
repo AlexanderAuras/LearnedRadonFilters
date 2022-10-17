@@ -26,24 +26,22 @@ from utils import extract_tensor, log_3d, log_img
 
 
 
-class LearnedFilterModel(pl.LightningModule):
+class AnalyticFilterModel(pl.LightningModule):
     def __init__(self, config: omegaconf.DictConfig) -> None:
         super().__init__()
         self.config = config
         self.example_input_array = torch.randn((1,1,len(self.config.sino_angles) if self.config.sino_angles != None else 256,len(self.config.sino_positions) if self.config.sino_positions != None else ceil((self.config.dataset.img_size*1.41421356237)/2.0)*2+1)) #Needed for pytorch lightning
 
-        self.filter_params = torch.nn.parameter.Parameter(
-            torch.zeros((
-                len(self.config.sino_angles) if self.config.sino_angles != None else 256,
-                int(len(self.config.sino_positions)//2+1) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2.0)+1
-            ))
-        )
+        self.pi = torch.nn.parameter.Parameter(torch.zeros((
+            len(self.config.sino_angles) if self.config.sino_angles != None else 256,
+            int(len(self.config.sino_positions)//2+1) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2.0)+1
+        ), dtype=torch.float32), requires_grad=False)
+        self.delta = torch.nn.parameter.Parameter(torch.zeros((
+            len(self.config.sino_angles) if self.config.sino_angles != None else 256,
+            int(len(self.config.sino_positions)//2+1) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2.0)+1
+        ), dtype=torch.float32), requires_grad=False)
         self.angles = torch.nn.parameter.Parameter(torch.tensor(self.config.sino_angles), requires_grad=False) if self.config.sino_angles != None else None
         self.positions = torch.nn.parameter.Parameter(torch.tensor(self.config.sino_positions), requires_grad=False) if self.config.sino_positions != None else None
-        self.layers = nn.Sequential(
-            radon.RadonFilter(lambda sino, params: sino*params, self.filter_params),
-            radon.RadonBackward(self.config.dataset.img_size, self.angles, self.positions)
-        )
 
         #Setup metrics
         with warnings.catch_warnings():
@@ -73,7 +71,8 @@ class LearnedFilterModel(pl.LightningModule):
 
     #Common forward method used by forward, training_step, validation_step and test_step
     def forward_intern(self, x: torch.Tensor) -> torch.Tensor:
-        return self.layers(x)
+        x = radon.radon_filter(x, lambda sino, params: sino*params, torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)*self.pi/(self.pi+self.delta))
+        return radon.radon_backward(x, self.config.dataset.img_size, self.angles, self.positions)
 
 
 
@@ -103,6 +102,8 @@ class LearnedFilterModel(pl.LightningModule):
         sinogram = radon.radon_forward(img, torch.tensor(self.config.sino_angles, device=img.device) if self.config.sino_angles != None else None, torch.tensor(self.config.sino_positions, device=img.device) if self.config.sino_positions != None else None)
         noise = self.config.noise_level*torch.randn_like(sinogram)
         noisy_sinogram = sinogram+noise
+        self.pi += torch.sum(torch.fft.rfft(sinogram, dim=3, norm="forward").abs()**2, dim=0)[0]
+        self.delta += torch.sum(torch.fft.rfft(noise, dim=3, norm="forward").abs()**2, dim=0)[0]
         ground_truth = img
         reconstruction = self.forward_intern(noisy_sinogram)
         loss = F.mse_loss(reconstruction, ground_truth)
@@ -118,7 +119,7 @@ class LearnedFilterModel(pl.LightningModule):
             logger.add_scalar("training/psnr", self.training_psnr_metric.compute().item(), self.global_step)
             logger.add_scalar("training/ssim", self.training_ssim_metric.compute().item(), self.global_step)
             logger.add_scalar("training/rel_l2", self.training_rel_l2_metric.compute().item(), self.global_step)
-        return loss
+        return torch.zeros((1), requires_grad=True)
 
 
 
@@ -159,23 +160,24 @@ class LearnedFilterModel(pl.LightningModule):
             logger.add_scalar("validation/rel_l2", self.validation_rel_l2_metric.compute().item(), self.global_step)
 
             #Log filter coefficients
+            filter_params = torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)*self.pi/(self.pi+self.delta)
             figure = plt.figure()
             axes: mpl_toolkits.mplot3d.Axes3D = figure.add_subplot(1, 1, 1, projection="3d")
-            plot_x, plot_y = torch.meshgrid(torch.arange(self.filter_params.shape[0]), torch.arange(self.filter_params.shape[1]), indexing="ij")
+            plot_x, plot_y = torch.meshgrid(torch.arange(filter_params.shape[0]), torch.arange(filter_params.shape[1]), indexing="ij")
             axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist())))
+            axes.set_xticks(torch.arange(0, filter_params.shape[0], filter_params.shape[0]//min(5, filter_params.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, filter_params.shape[0], filter_params.shape[0]//min(5, filter_params.shape[0])).to(torch.float32).tolist())))
             axes.set_ylabel("Frequency")
-            axes.set_yticks(torch.arange(0, self.filter_params.shape[1], self.filter_params.shape[1]//min(5, self.filter_params.shape[1])).to(torch.float32).tolist())
+            axes.set_yticks(torch.arange(0, filter_params.shape[1], filter_params.shape[1]//min(5, filter_params.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Filter value")
             axes.set_zlim(0.0, 2.0)
-            axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"), alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, filter_params.detach().to("cpu"), alpha=1.0)
             logger.add_figure("validation/filter_coefficients", figure, self.global_step)
-            log_3d(logger, "validation/filter_coefficients", self.filter_params, self.global_step, 1.0)
+            log_3d(logger, "validation/filter_coefficients", filter_params, self.global_step, 1.0)
 
             #Log examples
             sinogram = extract_tensor(outputs, "sinogram", 0)
             noisy_sinogram = extract_tensor(outputs, "noisy_sinogram", 0)
-            filtered_sinogram = radon.radon_filter(sinogram.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, self.filter_params)[0,0]
+            filtered_sinogram = radon.radon_filter(sinogram.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, filter_params)[0,0]
             ground_truth = extract_tensor(outputs, "ground_truth", 0)
             reconstruction = extract_tensor(outputs, "reconstruction", 0)
             log_img(logger, "validation/sinogram", sinogram.mT, self.global_step)
@@ -213,7 +215,8 @@ class LearnedFilterModel(pl.LightningModule):
 
 
     def test_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor]]]) -> None:
-        torch.save(self.filter_params, "coefficients.pt")
+        torch.save(self.pi, "pi.pt")
+        torch.save(self.delta, "delta.pt")
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -224,24 +227,26 @@ class LearnedFilterModel(pl.LightningModule):
             logger.add_scalar("test/rel_l2", self.test_rel_l2_metric.compute().item(), 0)
 
             #Log filter coefficients
+            filter_params = torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)*self.pi/(self.pi+self.delta)
+            torch.save(filter_params, "coefficients.pt")
             figure = plt.figure()
             axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
             axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist())))
+            axes.set_xticks(torch.arange(0, filter_params.shape[0], filter_params.shape[0]//min(5, filter_params.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, filter_params.shape[0], filter_params.shape[0]//min(5, filter_params.shape[0])).to(torch.float32).tolist())))
             axes.set_ylabel("Frequency")
-            axes.set_yticks(torch.arange(0, self.filter_params.shape[1], self.filter_params.shape[1]//min(5, self.filter_params.shape[1])).to(torch.float32).tolist())
+            axes.set_yticks(torch.arange(0, filter_params.shape[1], filter_params.shape[1]//min(5, filter_params.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Filter value")
             axes.set_zlim(0.0, 2.0)
-            plot_x, plot_y = torch.meshgrid(torch.arange(self.filter_params.shape[0]), torch.arange(self.filter_params.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"), alpha=1.0)
+            plot_x, plot_y = torch.meshgrid(torch.arange(filter_params.shape[0]), torch.arange(filter_params.shape[1]), indexing="ij")
+            axes.plot_surface(plot_x, plot_y, filter_params.detach().to("cpu"), alpha=1.0)
             logger.add_figure("test/filter_coefficients", figure, 0)
-            log_3d(logger, "test/filter_coefficients", self.filter_params, 0, 1.0)
+            log_3d(logger, "test/filter_coefficients", filter_params, 0, 1.0)
 
             #Log examples
             for i in range(10):
                 sinogram = extract_tensor(outputs, "sinogram", i)
                 noisy_sinogram = extract_tensor(outputs, "noisy_sinogram", i)
-                filtered_sinogram = radon.radon_filter(sinogram.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, self.filter_params)[0,0]
+                filtered_sinogram = radon.radon_filter(sinogram.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, filter_params)[0,0]
                 ground_truth = extract_tensor(outputs, "ground_truth", i)
                 reconstruction = extract_tensor(outputs, "reconstruction", i)
                 log_img(logger, "test/sinogram", sinogram.mT, i)

@@ -22,9 +22,10 @@ import torch
 import torch.utils.tensorboard
 import torch.version
 
-from learned_filter_model import LearnedFilterModel
 from mnist_datamodule import MNISTDataModule
 from ellipses_datamodule import EllipsesDataModule
+from learned_filter_model import LearnedFilterModel
+from analytic_filter_model import AnalyticFilterModel
 
 
 #Custom version of pytorch lightnings TensorBoardLogger, to allow manipulation of internal logging settings
@@ -69,10 +70,11 @@ def main(config: omegaconf.DictConfig) -> None:
         pytorch_lightning.seed_everything(config.seed, workers=True)
 
     #Create model and load data
+    modelClass = AnalyticFilterModel
     if config.checkpoint != None:
-        model = LearnedFilterModel.load_from_checkpoint(os.path.abspath(os.path.join("../../" if hydra.core.hydra_config.HydraConfig.get().mode == hydra.types.RunMode.MULTIRUN else "../", config.checkpoint)), config=config)
+        model = modelClass.load_from_checkpoint(os.path.abspath(os.path.join("../../" if hydra.core.hydra_config.HydraConfig.get().mode == hydra.types.RunMode.MULTIRUN else "../", config.checkpoint)), config=config)
     else:
-        model = LearnedFilterModel(config)
+        model = modelClass(config)
     if config.dataset.name == "MNIST":
         datamodule = MNISTDataModule(config)
     elif config.dataset.name == "ellipses":

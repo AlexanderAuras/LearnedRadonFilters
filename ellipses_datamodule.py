@@ -31,8 +31,8 @@ class _EllipsesDataset(torch.utils.data.Dataset):
         self.ellipse_alpha = torch.rand((real_ellipses_count,))*0.9+0.1
 
         #self.ellipses_count = torch.ones((img_count,), dtype=torch.int32)
-        #self.ellipse_width_aa = torch.full((img_count,), 0.75)
-        #self.ellipse_height_aa = torch.full((img_count,), 0.75)
+        #self.ellipse_width_aa = torch.full((img_count,), 1.0)#ellipses_size)
+        #self.ellipse_height_aa = torch.full((img_count,), 1.0)#ellipses_size)
         #self.ellipse_x_raw = torch.full((img_count,), 0.5)
         #self.ellipse_y_raw = torch.full((img_count,), 0.5)
         #self.ellipse_angle = torch.zeros((img_count,))
@@ -55,10 +55,14 @@ class _EllipsesDataset(torch.utils.data.Dataset):
         for i in range(self.ellipses_count[idx]):
             e_idx = prev_ellipses_count+i
             args = (self.ellipse_width_aa[e_idx].item(), self.ellipse_height_aa[e_idx].item(), self.ellipse_angle[e_idx].item()/180.0*torch.pi)
-            t = atan(-self.ellipse_height_aa[e_idx].item()*tan(self.ellipse_angle[e_idx].item()/180.0*torch.pi)/self.ellipse_width_aa[e_idx].item())
-            ellipse_width = max(ellipse_func(*args, t)[0], ellipse_func(*args, t+torch.pi)[0])-min(ellipse_func(*args, t)[0], ellipse_func(*args, t+torch.pi)[0])
-            t = atan(self.ellipse_height_aa[e_idx].item()/(tan(self.ellipse_angle[e_idx].item()/180.0*torch.pi)*self.ellipse_width_aa[e_idx].item()))
-            ellipse_height = max(ellipse_func(*args, t)[1], ellipse_func(*args, t+torch.pi)[1])-min(ellipse_func(*args, t)[1], ellipse_func(*args, t+torch.pi)[1])
+            if self.ellipse_angle[idx] == 0.0:
+                ellipse_width = self.ellipse_width_aa[e_idx]
+                ellipse_height = self.ellipse_height_aa[e_idx]
+            else:
+                t = atan(-self.ellipse_height_aa[e_idx].item()*tan(self.ellipse_angle[e_idx].item()/180.0*torch.pi)/self.ellipse_width_aa[e_idx].item())
+                ellipse_width = max(ellipse_func(*args, t)[0], ellipse_func(*args, t+torch.pi)[0])-min(ellipse_func(*args, t)[0], ellipse_func(*args, t+torch.pi)[0])
+                t = atan(self.ellipse_height_aa[e_idx].item()/(tan(self.ellipse_angle[e_idx].item()/180.0*torch.pi)*self.ellipse_width_aa[e_idx].item()))
+                ellipse_height = max(ellipse_func(*args, t)[1], ellipse_func(*args, t+torch.pi)[1])-min(ellipse_func(*args, t)[1], ellipse_func(*args, t+torch.pi)[1])
             ellipse_x = ellipse_width/2.0+self.ellipse_x_raw[e_idx].item()*(self.img_size-ellipse_width)
             ellipse_y = ellipse_height/2.0+self.ellipse_y_raw[e_idx].item()*(self.img_size-ellipse_height)
             ellipse = matplotlib.patches.Ellipse(xy=[ellipse_x, ellipse_y], width=self.ellipse_width_aa[e_idx].item(), height=self.ellipse_height_aa[e_idx].item(), angle=self.ellipse_angle[e_idx].item())

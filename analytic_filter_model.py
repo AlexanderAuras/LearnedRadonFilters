@@ -48,15 +48,16 @@ class AnalyticFilterModel(pl.LightningModule):
             self.training_loss_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.training_psnr_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.training_ssim_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
-            self.training_rel_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.validation_loss_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.validation_psnr_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.validation_ssim_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
-            self.validation_rel_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.test_loss_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.test_psnr_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.test_ssim_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
-            self.test_rel_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
+            self.test_input_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
+            self.test_output_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
+
+        
 
 
 
@@ -71,7 +72,9 @@ class AnalyticFilterModel(pl.LightningModule):
 
     #Common forward method used by forward, training_step, validation_step and test_step
     def forward_intern(self, sinogram: torch.Tensor) -> torch.Tensor:
-        filter_params = torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)*self.pi/(self.pi+self.delta)
+        ramp = torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)
+        ramp[:,0] = 0.25
+        filter_params = ramp*self.pi/(self.pi+self.delta)
         positions_count = self.positions.shape[0] if self.positions != None else 256
         angle_count = self.angles.shape[0] if self.angles != None else 256
         filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
@@ -99,23 +102,20 @@ class AnalyticFilterModel(pl.LightningModule):
         self.training_loss_metric.reset()
         self.training_psnr_metric.reset()
         self.training_ssim_metric.reset()
-        self.training_rel_l2_metric.reset()
 
         #Forward pass
-        img, _ = batch
-        sinogram = radon.radon_forward(img, torch.tensor(self.config.sino_angles, device=img.device) if self.config.sino_angles != None else None, torch.tensor(self.config.sino_positions, device=img.device) if self.config.sino_positions != None else None)
+        ground_truth, _ = batch
+        sinogram = radon.radon_forward(ground_truth, torch.tensor(self.config.sino_angles, device=ground_truth.device) if self.config.sino_angles != None else None, torch.tensor(self.config.sino_positions, device=ground_truth.device) if self.config.sino_positions != None else None)
         noise = self.config.noise_level*torch.randn_like(sinogram)
         noisy_sinogram = sinogram+noise
         self.pi += torch.sum(torch.fft.rfft(sinogram, dim=3, norm="forward").abs()**2, dim=0)[0]
         self.delta += torch.sum(torch.fft.rfft(noise, dim=3, norm="forward").abs()**2, dim=0)[0]
         self.count += sinogram.shape[0]
-        ground_truth = img
         reconstruction = self.forward_intern(noisy_sinogram)
         loss = F.mse_loss(reconstruction, ground_truth)
         self.training_loss_metric.update(loss.item())
         self.training_psnr_metric.update(torchmetrics.functional.peak_signal_noise_ratio(reconstruction, ground_truth))
         self.training_ssim_metric.update(typing.cast(torch.Tensor, torchmetrics.functional.structural_similarity_index_measure(reconstruction, ground_truth)))
-        self.training_rel_l2_metric.update(torch.sqrt(torch.sum((ground_truth-reconstruction)**2))/torch.sqrt(torch.sum(ground_truth**2)))
 
         #Log training metrics after each batch
         if self.logger:
@@ -123,7 +123,6 @@ class AnalyticFilterModel(pl.LightningModule):
             logger.add_scalar("training/loss", self.training_loss_metric.compute().item(), self.global_step)
             logger.add_scalar("training/psnr", self.training_psnr_metric.compute().item(), self.global_step)
             logger.add_scalar("training/ssim", self.training_ssim_metric.compute().item(), self.global_step)
-            logger.add_scalar("training/rel_l2", self.training_rel_l2_metric.compute().item(), self.global_step)
         return torch.zeros((1), requires_grad=True)
 
 
@@ -133,18 +132,15 @@ class AnalyticFilterModel(pl.LightningModule):
         self.validation_loss_metric.reset()
         self.validation_psnr_metric.reset()
         self.validation_ssim_metric.reset()
-        self.validation_rel_l2_metric.reset()
 
         #Forward pass
-        img, _ = batch
-        sinogram = radon.radon_forward(img, torch.tensor(self.config.sino_angles, device=img.device) if self.config.sino_angles != None else None, torch.tensor(self.config.sino_positions, device=img.device) if self.config.sino_positions != None else None)
+        ground_truth, _ = batch
+        sinogram = radon.radon_forward(ground_truth, torch.tensor(self.config.sino_angles, device=ground_truth.device) if self.config.sino_angles != None else None, torch.tensor(self.config.sino_positions, device=ground_truth.device) if self.config.sino_positions != None else None)
         noisy_sinogram = sinogram+self.config.noise_level*torch.randn_like(sinogram)
-        ground_truth = img
         reconstruction = self.forward_intern(noisy_sinogram)
         self.validation_loss_metric.update(F.mse_loss(reconstruction, ground_truth))
         self.validation_psnr_metric.update(torchmetrics.functional.peak_signal_noise_ratio(reconstruction, ground_truth))
         self.validation_ssim_metric.update(typing.cast(torch.Tensor, torchmetrics.functional.structural_similarity_index_measure(reconstruction, ground_truth)))
-        self.validation_rel_l2_metric.update(torch.sqrt(torch.sum((ground_truth-reconstruction)**2))/torch.sqrt(torch.sum(ground_truth**2)))
 
         #Return data for logging purposes
         if batch_idx == 0:
@@ -162,10 +158,11 @@ class AnalyticFilterModel(pl.LightningModule):
             logger.add_scalar("validation/loss", self.validation_loss_metric.compute().item(), self.global_step)
             logger.add_scalar("validation/psnr", self.validation_psnr_metric.compute().item(), self.global_step)
             logger.add_scalar("validation/ssim", self.validation_ssim_metric.compute().item(), self.global_step)
-            logger.add_scalar("validation/rel_l2", self.validation_rel_l2_metric.compute().item(), self.global_step)
 
             #Log filter coefficients
-            filter_params = torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)*self.pi/(self.pi+self.delta)
+            ramp = torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)
+            ramp[:,0] = 0.25
+            filter_params = ramp*self.pi/(self.pi+self.delta)
             positions_count = self.positions.shape[0] if self.positions != None else 256
             angle_count = self.angles.shape[0] if self.angles != None else 256
             filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
@@ -201,18 +198,17 @@ class AnalyticFilterModel(pl.LightningModule):
         self.test_loss_metric.reset()
         self.test_psnr_metric.reset()
         self.test_ssim_metric.reset()
-        self.test_rel_l2_metric.reset()
 
         #Forward pass
-        img, _ = batch
-        sinogram = radon.radon_forward(img, torch.tensor(self.config.sino_angles, device=img.device) if self.config.sino_angles != None else None, torch.tensor(self.config.sino_positions, device=img.device) if self.config.sino_positions != None else None)
+        ground_truth, _ = batch
+        sinogram = radon.radon_forward(ground_truth, torch.tensor(self.config.sino_angles, device=ground_truth.device) if self.config.sino_angles != None else None, torch.tensor(self.config.sino_positions, device=ground_truth.device) if self.config.sino_positions != None else None)
         noisy_sinogram = sinogram+self.config.noise_level*torch.randn_like(sinogram)
-        ground_truth = img
         reconstruction = self.forward_intern(noisy_sinogram)
         self.test_loss_metric.update(F.mse_loss(reconstruction, ground_truth))
         self.test_psnr_metric.update(torchmetrics.functional.peak_signal_noise_ratio(reconstruction, ground_truth))
         self.test_ssim_metric.update(typing.cast(torch.Tensor, torchmetrics.functional.structural_similarity_index_measure(reconstruction, ground_truth)))
-        self.test_rel_l2_metric.update(torch.sqrt(torch.sum((ground_truth-reconstruction)**2))/torch.sqrt(torch.sum(ground_truth**2)))
+        self.test_input_l2_metric.update(torch.sqrt(torch.sum(ground_truth**2, 3).sum(2)).mean())
+        self.test_output_l2_metric.update(torch.sqrt(torch.sum(reconstruction**2, 3).sum(2)).mean())
 
         #Return data for logging purposes
         if batch_idx < 10:
@@ -230,10 +226,13 @@ class AnalyticFilterModel(pl.LightningModule):
             logger.add_scalar("test/loss", self.test_loss_metric.compute().item(), 0)
             logger.add_scalar("test/psnr", self.test_psnr_metric.compute().item(), 0)
             logger.add_scalar("test/ssim", self.test_ssim_metric.compute().item(), 0)
-            logger.add_scalar("test/rel_l2", self.test_rel_l2_metric.compute().item(), 0)
+            logger.add_scalar("test/input_l2", self.test_input_l2_metric.compute().item(), 0)
+            logger.add_scalar("test/output_l2", self.test_output_l2_metric.compute().item(), 0)
 
             #Log filter coefficients
-            filter_params = torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)*self.pi/(self.pi+self.delta)
+            ramp = torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0)
+            ramp[:,0] = 0.25
+            filter_params = ramp*self.pi/(self.pi+self.delta)
             positions_count = self.positions.shape[0] if self.positions != None else 256
             angle_count = self.angles.shape[0] if self.angles != None else 256
             filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
@@ -251,6 +250,24 @@ class AnalyticFilterModel(pl.LightningModule):
             logger.add_figure("test/filter_coefficients", figure, 0)
             log_3d(logger, "test/filter_coefficients", filter_params, 0, 1.0)
             log_img(logger, "test/_filter_coefficients", filter_params.mT, 0)
+
+            #Log filter coefficients2
+            pipidelta = self.pi/(self.pi+self.delta)
+            positions_count = self.positions.shape[0] if self.positions != None else 256
+            angle_count = self.angles.shape[0] if self.angles != None else 256
+            figure = plt.figure()
+            axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
+            axes.set_xlabel("Angle")
+            axes.set_xticks(torch.arange(0, pipidelta.shape[0], pipidelta.shape[0]//min(5, pipidelta.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/pipidelta.shape[0]:3.2f} \u03C0", torch.arange(0, pipidelta.shape[0], pipidelta.shape[0]//min(5, pipidelta.shape[0])).to(torch.float32).tolist())))
+            axes.set_ylabel("Frequency")
+            axes.set_yticks(torch.arange(0, pipidelta.shape[1], pipidelta.shape[1]//min(5, pipidelta.shape[1])).to(torch.float32).tolist())
+            axes.set_zlabel("Filter value")
+            #axes.set_zlim(0.0, 2.0)
+            plot_x, plot_y = torch.meshgrid(torch.arange(pipidelta.shape[0]), torch.arange(pipidelta.shape[1]), indexing="ij")
+            axes.plot_surface(plot_x, plot_y, pipidelta.detach().to("cpu"), alpha=1.0)
+            logger.add_figure("test/pi_(pi+delta)", figure, 0)
+            log_3d(logger, "test/pi_(pi+delta)", pipidelta, 0, 1.0)
+            log_img(logger, "test/_pi_(pi+delta)", pipidelta.mT, 0)
 
             #Log pi and delta
             torch.save(self.pi, "pi.pt")

@@ -70,7 +70,12 @@ def main(config: omegaconf.DictConfig) -> None:
         pytorch_lightning.seed_everything(config.seed, workers=True)
 
     #Create model and load data
-    modelClass = AnalyticFilterModel
+    if config.model.name == "analytic":
+        modelClass = AnalyticFilterModel
+    elif config.model.name == "learned":
+        modelClass = LearnedFilterModel
+    else:
+        raise NotImplementedError()
     if config.checkpoint != None:
         model = modelClass.load_from_checkpoint(os.path.abspath(os.path.join("../../" if hydra.core.hydra_config.HydraConfig.get().mode == hydra.types.RunMode.MULTIRUN else "../", config.checkpoint)), config=config)
     else:

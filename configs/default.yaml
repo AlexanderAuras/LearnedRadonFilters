@@ -14,14 +14,15 @@ hydra:
                 filename: ${hydra.runtime.output_dir}/run.log
 
 #####General settings#####
-out_dir: /data/sciebo/experiments/LearnedRadonFilters/
+out_dir: /work/ws-tmp/aa609734-LRF_experiments/
 deterministic: true
 seed: 1234567
 device: "cuda"
-num_workers: -1
+num_workers: 10
 
 #####Extern settings#####
 defaults:
+    - model: learned
     - dataset: ellipses
     - override hydra/job_logging: colorlog
     - override hydra/hydra_logging: colorlog

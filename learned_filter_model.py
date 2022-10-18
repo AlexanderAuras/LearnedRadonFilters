@@ -22,7 +22,7 @@ import mpl_toolkits.mplot3d
 
 import radon
 
-from utils import extract_tensor, log_3d, log_img
+from utils import log_3d, log_img
 
 
 
@@ -173,11 +173,11 @@ class LearnedFilterModel(pl.LightningModule):
             log_3d(logger, "validation/filter_coefficients", self.filter_params, self.global_step, 1.0)
 
             #Log examples
-            sinogram = extract_tensor(outputs, "sinogram", 0)
-            noisy_sinogram = extract_tensor(outputs, "noisy_sinogram", 0)
+            sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
+            noisy_sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["noisy_sinogram"][0,0]
             filtered_sinogram = radon.radon_filter(sinogram.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, self.filter_params)[0,0]
-            ground_truth = extract_tensor(outputs, "ground_truth", 0)
-            reconstruction = extract_tensor(outputs, "reconstruction", 0)
+            ground_truth = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["ground_truth"][0,0]
+            reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["reconstruction"][0,0]
             log_img(logger, "validation/sinogram", sinogram.mT, self.global_step)
             log_img(logger, "validation/noisy_sinogram", noisy_sinogram.mT, self.global_step)
             log_img(logger, "validation/filtered_sinogram", filtered_sinogram.mT, self.global_step)
@@ -239,11 +239,11 @@ class LearnedFilterModel(pl.LightningModule):
 
             #Log examples
             for i in range(10):
-                sinogram = extract_tensor(outputs, "sinogram", i)
-                noisy_sinogram = extract_tensor(outputs, "noisy_sinogram", i)
+                sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["sinogram"][0,0]
+                noisy_sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["noisy_sinogram"][0,0]
                 filtered_sinogram = radon.radon_filter(sinogram.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, self.filter_params)[0,0]
-                ground_truth = extract_tensor(outputs, "ground_truth", i)
-                reconstruction = extract_tensor(outputs, "reconstruction", i)
+                ground_truth = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["ground_truth"][0,0]
+                reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["reconstruction"][0,0]
                 log_img(logger, "test/sinogram", sinogram.mT, i)
                 log_img(logger, "test/noisy_sinogram", noisy_sinogram.mT, i)
                 log_img(logger, "test/filtered_sinogram", filtered_sinogram.mT, i)

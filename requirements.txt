@@ -1,0 +1,9 @@
+hydra-core==1.2.0
+matplotlib==3.5.2
+numpy==1.22.4
+omegaconf==2.2.2
+pytorch_lightning==1.7.1
+radon==1.0.0
+torch==1.12.1
+torchmetrics==0.9.3
+torchvision==0.13.1

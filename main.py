@@ -8,6 +8,7 @@ import warnings
 import hydra
 import hydra.core.hydra_config
 import omegaconf
+
 #Register additional resolver for log path
 omegaconf.OmegaConf.register_new_resolver("list_to_string", lambda o: functools.reduce(lambda acc, x: acc+", "+x.replace("\"","").replace("/"," "), o, "")[2:])
 omegaconf.OmegaConf.register_new_resolver("eval", lambda c: eval(c))
@@ -26,6 +27,7 @@ from mnist_datamodule import MNISTDataModule
 from ellipses_datamodule import EllipsesDataModule
 from learned_filter_model import LearnedFilterModel
 from analytic_filter_model import AnalyticFilterModel
+from learned_svd_model import LearnedSVDModel
 
 
 #Custom version of pytorch lightnings TensorBoardLogger, to allow manipulation of internal logging settings
@@ -74,6 +76,8 @@ def main(config: omegaconf.DictConfig) -> None:
         modelClass = AnalyticFilterModel
     elif config.model.name == "learned":
         modelClass = LearnedFilterModel
+    elif config.model.name == "svd":
+        modelClass = LearnedSVDModel
     else:
         raise NotImplementedError()
     if config.checkpoint != None:

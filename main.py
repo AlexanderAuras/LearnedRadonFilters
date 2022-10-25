@@ -98,7 +98,7 @@ def main(config: omegaconf.DictConfig) -> None:
         trainer = pytorch_lightning.Trainer(
             deterministic=config.deterministic, 
             callbacks=[pytorch_lightning.callbacks.ModelCheckpoint(dirpath=".")], 
-            accelerator="gpu" if config.device == "cuda" else None, 
+            accelerator="gpu" if config.device == "cuda" else None, gpus = 1,
             max_epochs=config.epochs, 
             logger=CustomTensorBoardLogger(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir, None, ""), 
             limit_train_batches=int(config.training_batch_count) if config.training_batch_count != -1 else len(datamodule.train_dataloader()), 

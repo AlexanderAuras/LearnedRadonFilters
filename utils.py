@@ -1,13 +1,20 @@
 import typing
 
 import torch
+import matplotlib
 import matplotlib.pyplot as plt
 
 
 
-def log_img(logger: typing.Any, tag: str, img: torch.Tensor, step: int) -> None:
+def log_img(logger: typing.Any, tag: str, img: torch.Tensor, step: int, log_color: bool=False) -> None:
     figure = plt.figure()
-    plt.imshow(img.detach().to("cpu"), cmap="gray")
+    img = torch.nan_to_num(img, 1.0)
+    if img.max() == img.min():
+        img[0,0] += 0.0001
+    if log_color:
+        plt.imshow(img.detach().to("cpu"), cmap="gray", norm=matplotlib.colors.LogNorm())
+    else:
+        plt.imshow(img.detach().to("cpu"), cmap="gray")
     plt.colorbar()
     plt.tight_layout()
     logger.add_figure(tag, figure, step)

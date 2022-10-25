@@ -23,7 +23,7 @@ num_workers: -1
 #####Extern settings#####
 defaults:
     - model: learned
-    - dataset: mnist
+    - dataset: ellipses
     - override hydra/job_logging: colorlog
     - override hydra/hydra_logging: colorlog
     - _self_

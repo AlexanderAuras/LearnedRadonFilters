@@ -20,7 +20,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
-import radon
+import submodules.radon as radon
 
 from utils import log_3d, log_img
 
@@ -186,6 +186,7 @@ class LearnedFilterModel(pl.LightningModule):
             axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"), alpha=1.0)
             logger.add_figure("validation/filter_coefficients", figure, self.global_step)
             log_3d(logger, "validation/filter_coefficients", self.filter_params, self.global_step, 1.0)
+            log_img(logger, "validation/_filter_coefficients", self.filter_params.mT, 0, True)
 
             #Log examples
             sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
@@ -251,6 +252,7 @@ class LearnedFilterModel(pl.LightningModule):
             axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"), alpha=1.0)
             logger.add_figure("test/filter_coefficients", figure, 0)
             log_3d(logger, "test/filter_coefficients", self.filter_params, 0, 1.0)
+            log_img(logger, "test/_filter_coefficients", self.filter_params.mT, 0, True)
 
             #Log examples
             for i in range(10):

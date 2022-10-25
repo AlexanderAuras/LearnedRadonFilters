@@ -23,16 +23,23 @@ class _EllipsesDataset(torch.utils.data.Dataset):
         self.img_size = img_size
         self.ellipses_count = torch.poisson(torch.full((img_count,), ellipses_count).to(torch.float32)).to(torch.int32)
         real_ellipses_count = self.ellipses_count.sum()
-        self.ellipse_width_aa = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
+        self.ellipse_angle = torch.rand((real_ellipses_count,))*360.0
+        self.ellipse_alpha = torch.rand((real_ellipses_count,))*0.9+0.1
+        self.ellipse_width_aa  = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
         self.ellipse_height_aa = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
         self.ellipse_x_raw = torch.rand((real_ellipses_count,))
         self.ellipse_y_raw = torch.rand((real_ellipses_count,))
-        self.ellipse_angle = torch.rand((real_ellipses_count,))*360.0
-        self.ellipse_alpha = torch.rand((real_ellipses_count,))*0.9+0.1
+
+        r = torch.rand((real_ellipses_count,))*0.3
+        alpha = torch.rand((real_ellipses_count,))*2.0*torch.pi
+        self.ellipse_x_raw = torch.cos(alpha)*r+0.5
+        self.ellipse_y_raw = torch.sin(alpha)*r+0.5
+        self.ellipse_width_aa  = torch.rand((real_ellipses_count,))*0.15*img_size+0.05*img_size#max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
+        self.ellipse_height_aa = torch.rand((real_ellipses_count,))*0.15*img_size+0.05*img_size#max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
 
         #self.ellipses_count = torch.ones((img_count,), dtype=torch.int32)
-        #self.ellipse_width_aa = torch.full((img_count,), 1.0)#ellipses_size)
-        #self.ellipse_height_aa = torch.full((img_count,), 1.0)#ellipses_size)
+        #self.ellipse_width_aa  = torch.full((img_count,), img_size)#ellipses_size)
+        #self.ellipse_height_aa = torch.full((img_count,), img_size)#ellipses_size)
         #self.ellipse_x_raw = torch.full((img_count,), 0.5)
         #self.ellipse_y_raw = torch.full((img_count,), 0.5)
         #self.ellipse_angle = torch.zeros((img_count,))

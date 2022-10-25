@@ -21,7 +21,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
-import radon
+import submodules.radon as radon
 
 from utils import log_3d, log_img
 
@@ -60,7 +60,6 @@ class AnalyticFilterModel(pl.LightningModule):
 
         self.ramp = torch.nn.parameter.Parameter(torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0), requires_grad=False)
         self.ramp[:,0] = 0.25
-        self.ramp *= self.config.dataset.img_size
         #self.ramp = torch.load(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir+"/../learned_filter/noise_level=0.0/coefficients.pt")
 
 
@@ -77,9 +76,9 @@ class AnalyticFilterModel(pl.LightningModule):
     #Common forward method used by forward, training_step, validation_step and test_step
     def forward_intern(self, sinogram: torch.Tensor) -> torch.Tensor:
         filter_params = self.ramp*self.pi/(self.pi+self.delta)
-        positions_count = self.positions.shape[0] if self.positions != None else 256
+        positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
         angle_count = self.angles.shape[0] if self.angles != None else 256
-        filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
+        filter_params *= 2.0*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count#*self.config.dataset.img_size#*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
         filtered_sinogram = radon.radon_filter(sinogram, lambda sino, params: sino*params, filter_params)
         return radon.radon_backward(filtered_sinogram, self.config.dataset.img_size, self.angles, self.positions)
 
@@ -163,7 +162,7 @@ class AnalyticFilterModel(pl.LightningModule):
 
             #Log filter coefficients
             filter_params = self.ramp*self.pi/(self.pi+self.delta)
-            positions_count = self.positions.shape[0] if self.positions != None else 256
+            positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
             angle_count = self.angles.shape[0] if self.angles != None else 256
             filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
             figure = plt.figure()
@@ -178,6 +177,7 @@ class AnalyticFilterModel(pl.LightningModule):
             axes.plot_surface(plot_x, plot_y, filter_params.detach().to("cpu"), alpha=1.0)
             logger.add_figure("validation/filter_coefficients", figure, self.global_step)
             log_3d(logger, "validation/filter_coefficients", filter_params, self.global_step, 1.0)
+            log_img(logger, "validation/_filter_coefficients", filter_params.mT, 0, True)
 
             #Log examples
             sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
@@ -231,7 +231,7 @@ class AnalyticFilterModel(pl.LightningModule):
 
             #Log filter coefficients
             filter_params = self.ramp*self.pi/(self.pi+self.delta)
-            positions_count = self.positions.shape[0] if self.positions != None else 256
+            positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
             angle_count = self.angles.shape[0] if self.angles != None else 256
             filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
             torch.save(filter_params, "coefficients.pt")
@@ -247,7 +247,7 @@ class AnalyticFilterModel(pl.LightningModule):
             axes.plot_surface(plot_x, plot_y, filter_params.detach().to("cpu"), alpha=1.0)
             logger.add_figure("test/filter_coefficients", figure, 0)
             log_3d(logger, "test/filter_coefficients", filter_params, 0, 1.0)
-            log_img(logger, "test/_filter_coefficients", filter_params.mT, 0)
+            log_img(logger, "test/_filter_coefficients", filter_params.mT, 0, True)
 
             #Log filter coefficients2
             pipidelta = self.pi/(self.pi+self.delta)
@@ -265,7 +265,7 @@ class AnalyticFilterModel(pl.LightningModule):
             axes.plot_surface(plot_x, plot_y, pipidelta.detach().to("cpu"), alpha=1.0)
             logger.add_figure("test/pi_(pi+delta)", figure, 0)
             log_3d(logger, "test/pi_(pi+delta)", pipidelta, 0, 1.0)
-            log_img(logger, "test/_pi_(pi+delta)", pipidelta.mT, 0)
+            log_img(logger, "test/_pi_(pi+delta)", pipidelta.mT, 0, True)
 
             #Log pi and delta
             torch.save(self.pi, "pi.pt")
@@ -281,7 +281,7 @@ class AnalyticFilterModel(pl.LightningModule):
             axes.plot_surface(plot_x, plot_y, self.pi.detach().to("cpu")/self.count, alpha=1.0)
             logger.add_figure("test/pi", figure, 0)
             log_3d(logger, "test/pi", self.pi/self.count, 0, 1.0)
-            log_img(logger, "test/_pi", self.pi.mT/self.count, 0)
+            log_img(logger, "test/_pi", self.pi.mT/self.count, 0, True)
 
             torch.save(self.delta, "delta.pt")
             figure = plt.figure()
@@ -296,7 +296,7 @@ class AnalyticFilterModel(pl.LightningModule):
             axes.plot_surface(plot_x, plot_y, self.delta.detach().to("cpu")/self.count, alpha=1.0)
             logger.add_figure("test/delta", figure, 0)
             log_3d(logger, "test/delta", self.delta/self.count, 0, 1.0)
-            log_img(logger, "test/_delta", self.delta.mT/self.count, 0)
+            log_img(logger, "test/_delta", self.delta.mT/self.count, 0, True)
 
             #Log examples
             for i in range(10):

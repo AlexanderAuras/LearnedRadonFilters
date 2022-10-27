@@ -21,7 +21,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
-import submodules.radon as radon
+import radon
 
 from utils import log_3d, log_img
 
@@ -37,6 +37,10 @@ class AnalyticFilterModel(pl.LightningModule):
             int(len(self.config.sino_positions)//2+1) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2.0)+1
         ), dtype=torch.float32), requires_grad=False)
         self.delta = torch.nn.parameter.Parameter(torch.zeros((
+            len(self.config.sino_angles) if self.config.sino_angles != None else 256,
+            int(len(self.config.sino_positions)//2+1) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2.0)+1
+        ), dtype=torch.float32), requires_grad=False)
+        self.gamma = torch.nn.parameter.Parameter(torch.zeros((
             len(self.config.sino_angles) if self.config.sino_angles != None else 256,
             int(len(self.config.sino_positions)//2+1) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2.0)+1
         ), dtype=torch.float32), requires_grad=False)
@@ -58,9 +62,7 @@ class AnalyticFilterModel(pl.LightningModule):
             self.test_input_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.test_output_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
 
-        self.ramp = torch.nn.parameter.Parameter(torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0), requires_grad=False)
-        self.ramp[:,0] = 0.25
-        #self.ramp = torch.load(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir+"/../learned_filter/noise_level=0.0/coefficients.pt")
+        self.ramp = torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned/noise_level=0/coefficients.pt")
 
 
 
@@ -75,10 +77,10 @@ class AnalyticFilterModel(pl.LightningModule):
 
     #Common forward method used by forward, training_step, validation_step and test_step
     def forward_intern(self, sinogram: torch.Tensor) -> torch.Tensor:
-        filter_params = self.ramp*self.pi/(self.pi+self.delta)
-        positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
-        angle_count = self.angles.shape[0] if self.angles != None else 256
-        filter_params *= 2.0*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count#*self.config.dataset.img_size#*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
+        filter_params = self.ramp*(self.pi-self.gamma)/(self.pi+self.delta+2*self.gamma)
+        #positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
+        #angle_count = self.angles.shape[0] if self.angles != None else 256
+        #filter_params *= 2.0*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count#*self.config.dataset.img_size#*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
         filtered_sinogram = radon.radon_filter(sinogram, lambda sino, params: sino*params, filter_params)
         return radon.radon_backward(filtered_sinogram, self.config.dataset.img_size, self.angles, self.positions)
 
@@ -111,6 +113,7 @@ class AnalyticFilterModel(pl.LightningModule):
         noisy_sinogram = sinogram+noise
         self.pi += torch.sum(torch.fft.rfft(sinogram, dim=3, norm="forward").abs()**2, dim=0)[0]
         self.delta += torch.sum(torch.fft.rfft(noise, dim=3, norm="forward").abs()**2, dim=0)[0]
+        self.gamma += torch.sum(torch.fft.rfft(sinogram, dim = 3, norm = "forward").real*torch.fft.rfft(noise, dim=3, norm="forward").imag + torch.fft.rfft(sinogram, dim = 3, norm = "forward").imag * torch.fft.rfft(noise, dim=3, norm="forward").real, dim = 0)[0]
         self.count += sinogram.shape[0]
         reconstruction = self.forward_intern(noisy_sinogram)
         loss = F.mse_loss(reconstruction, ground_truth)
@@ -161,10 +164,10 @@ class AnalyticFilterModel(pl.LightningModule):
             logger.add_scalar("validation/ssim", self.validation_ssim_metric.compute().item(), self.global_step)
 
             #Log filter coefficients
-            filter_params = self.ramp*self.pi/(self.pi+self.delta)
-            positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
-            angle_count = self.angles.shape[0] if self.angles != None else 256
-            filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
+            filter_params = self.ramp*(self.pi-self.gamma)/(self.pi+self.delta+2*self.gamma)
+            # positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
+            # angle_count = self.angles.shape[0] if self.angles != None else 256
+            # filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
             figure = plt.figure()
             axes: mpl_toolkits.mplot3d.Axes3D = figure.add_subplot(1, 1, 1, projection="3d")
             axes.set_xlabel("Angle")
@@ -230,10 +233,10 @@ class AnalyticFilterModel(pl.LightningModule):
             logger.add_scalar("test/output_l2", self.test_output_l2_metric.compute().item(), 0)
 
             #Log filter coefficients
-            filter_params = self.ramp*self.pi/(self.pi+self.delta)
-            positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
-            angle_count = self.angles.shape[0] if self.angles != None else 256
-            filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
+            filter_params = self.ramp*(self.pi-self.gamma)/(self.pi+self.delta+2*self.gamma)
+            # positions_count = self.positions.shape[0] if self.positions != None else ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)*2.0+1
+            # angle_count = self.angles.shape[0] if self.angles != None else 256
+            # filter_params *= 2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angle_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
             torch.save(filter_params, "coefficients.pt")
             figure = plt.figure()
             axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
@@ -267,7 +270,7 @@ class AnalyticFilterModel(pl.LightningModule):
             log_3d(logger, "test/pi_(pi+delta)", pipidelta, 0, 1.0)
             log_img(logger, "test/_pi_(pi+delta)", pipidelta.mT, 0, True)
 
-            #Log pi and delta
+            #Log pi, delta and gamma
             torch.save(self.pi, "pi.pt")
             figure = plt.figure()
             axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
@@ -297,6 +300,8 @@ class AnalyticFilterModel(pl.LightningModule):
             logger.add_figure("test/delta", figure, 0)
             log_3d(logger, "test/delta", self.delta/self.count, 0, 1.0)
             log_img(logger, "test/_delta", self.delta.mT/self.count, 0, True)
+
+            torch.save(self.gamma, "gamma.pt")
 
             #Log examples
             for i in range(10):

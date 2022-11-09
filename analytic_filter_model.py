@@ -25,7 +25,8 @@ import radon
 
 from utils import log_3d, log_img
 
-
+import sys
+check_python_version = (sys.version_info[0] >= 3) and (sys.version_info[1] >= 10)
 
 class AnalyticFilterModel(pl.LightningModule):
     def __init__(self, config: omegaconf.DictConfig) -> None:
@@ -62,7 +63,12 @@ class AnalyticFilterModel(pl.LightningModule):
             self.test_input_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.test_output_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
 
-        self.ramp = torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned/noise_level=0/coefficients.pt")
+        #self.ramp = torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned/noise_level=0/coefficients.pt")
+        torch.abs(torch.arange(0, int(positions_count//2+1))).to(torch.float32).repeat(angles_count,1)*2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angles_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
+        self.ramp = torch.nn.parameter.Parameter(torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0), requires_grad=False)
+        self.ramp[:,0] = 0.25
+        #self.ramp = torch.load(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir+"/../learned_filter/noise_level=0.0/coefficients.pt")
+
 
 
 
@@ -131,7 +137,7 @@ class AnalyticFilterModel(pl.LightningModule):
 
 
 
-    def validation_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,torch.Tensor|None]:
+    def validation_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,torch.Tensor|None if check_python_version else typing.Union[torch.Tensor, None]]:
         #Reset metrics
         self.validation_loss_metric.reset()
         self.validation_psnr_metric.reset()
@@ -154,7 +160,7 @@ class AnalyticFilterModel(pl.LightningModule):
 
 
 
-    def validation_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor]]]) -> None:
+    def validation_epoch_end(self, outputs: list[dict[str, torch.Tensor|list[torch.Tensor] if check_python_version else typing.Union[torch.Tensor, list[torch.Tensor]]]]) -> None:
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -196,7 +202,7 @@ class AnalyticFilterModel(pl.LightningModule):
 
 
 
-    def test_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,torch.Tensor|list[torch.Tensor]]:
+    def test_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,torch.Tensor|list[torch.Tensor] if check_python_version else typing.Union[torch.Tensor, list[torch.Tensor]]]:
         #Reset metrics
         self.test_loss_metric.reset()
         self.test_psnr_metric.reset()
@@ -221,7 +227,7 @@ class AnalyticFilterModel(pl.LightningModule):
 
 
 
-    def test_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor]]]) -> None:
+    def test_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor] if check_python_version else typing.Union[torch.Tensor, list[torch.Tensor]]]]) -> None:
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 

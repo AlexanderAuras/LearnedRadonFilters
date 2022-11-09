@@ -4,6 +4,8 @@ import torch
 import matplotlib
 import matplotlib.pyplot as plt
 
+import sys
+check_python_version = (sys.version_info[0] >= 3) and (sys.version_info[1] >= 10)
 
 
 def log_img(logger: typing.Any, tag: str, img: torch.Tensor, step: int, log_color: bool=False) -> None:
@@ -22,7 +24,7 @@ def log_img(logger: typing.Any, tag: str, img: torch.Tensor, step: int, log_colo
 
 
 
-def log_3d(logger: typing.Any, tag: str, data: torch.Tensor, step: int, ar: float|None = None) -> None:
+def log_3d(logger: typing.Any, tag: str, data: torch.Tensor, step: int, ar: float|None if check_python_version else typing.Union[float, None] = None) -> None:
     x_coords, z_coords = torch.meshgrid(torch.cat((torch.tensor([0.0]), torch.arange(data.shape[1]), torch.tensor([data.shape[1]-1]))), torch.cat((torch.tensor([0.0]), torch.arange(data.shape[0]), torch.tensor([data.shape[0]-1]))), indexing="xy")
     x_coords, z_coords = x_coords.flatten(), z_coords.flatten()
     if ar == None:

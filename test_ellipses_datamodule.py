@@ -15,12 +15,10 @@ import matplotlib.patches
 import matplotlib.pyplot as plt
 import numpy as np
 
-import sys
-check_python_version = (sys.version_info[0] >= 3) and (sys.version_info[1] >= 10)
 
 
 class _EllipsesDataset(torch.utils.data.Dataset):
-    def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1, transform: typing.Callable[[torch.Tensor],torch.Tensor]|None if check_python_version else typing.Union[typing.Callable[[torch.Tensor],torch.Tensor] , None] = None, number_ellipses_poisson=False, random_size=True):
+    def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1, transform: typing.Union[typing.Callable[[torch.Tensor],torch.Tensor], None]=None, number_ellipses_poisson=False):
         self.img_count = img_count
         self.img_size = img_size
         if number_ellipses_poisson == True:
@@ -28,28 +26,16 @@ class _EllipsesDataset(torch.utils.data.Dataset):
         else:
             self.ellipses_count = (torch.full((img_count,), ellipses_count).to(torch.float32)).to(torch.int32)
         real_ellipses_count = self.ellipses_count.sum()
-        self.ellipse_angle = torch.rand((real_ellipses_count,))*360.0
-        self.ellipse_alpha = torch.rand((real_ellipses_count,))*0.9+0.1
-        self.ellipse_width_aa  = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
+        self.ellipse_width_aa = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
         self.ellipse_height_aa = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
         self.ellipse_x_raw = torch.rand((real_ellipses_count,))
         self.ellipse_y_raw = torch.rand((real_ellipses_count,))
-
-        r = torch.rand((real_ellipses_count,))*0.3
-        alpha = torch.rand((real_ellipses_count,))*2.0*torch.pi
-        self.ellipse_x_raw = torch.cos(alpha)*r+0.5
-        self.ellipse_y_raw = torch.sin(alpha)*r+0.5
-        if random_size:
-            self.ellipse_width_aa  = torch.rand((real_ellipses_count,))*0.15*img_size+0.05*img_size#max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
-            self.ellipse_height_aa = torch.rand((real_ellipses_count,))*0.15*img_size+0.05*img_size#max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
-        else:
-            self.ellipse_width_aa  = torch.ones(real_ellipses_count)*ellipses_size #max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
-            self.ellipse_height_aa = torch.ones(real_ellipses_count)*ellipses_size #max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
-
+        self.ellipse_angle = torch.rand((real_ellipses_count,))*360.0
+        self.ellipse_alpha = torch.rand((real_ellipses_count,))*0.9+0.1
 
         #self.ellipses_count = torch.ones((img_count,), dtype=torch.int32)
-        #self.ellipse_width_aa  = torch.full((img_count,), img_size)#ellipses_size)
-        #self.ellipse_height_aa = torch.full((img_count,), img_size)#ellipses_size)
+        #self.ellipse_width_aa = torch.full((img_count,), 1.0)#ellipses_size)
+        #self.ellipse_height_aa = torch.full((img_count,), 1.0)#ellipses_size)
         #self.ellipse_x_raw = torch.full((img_count,), 0.5)
         #self.ellipse_y_raw = torch.full((img_count,), 0.5)
         #self.ellipse_angle = torch.zeros((img_count,))
@@ -57,12 +43,9 @@ class _EllipsesDataset(torch.utils.data.Dataset):
 
         self.transform = transform
 
-        #self.channel_selection_mode = "alpha"
-        #if self[0][0].sum() == self.img_size*self.img_size:
-        #    self.channel_selection_mode = "noalpha"
-        self.channel_selection_mode = "noalpha"
-
-        print(f'channel_selection_mode: {self.channel_selection_mode}')
+        self.channel_selection_mode = "alpha"
+        if self[0][0].sum() == self.img_size*self.img_size:
+            self.channel_selection_mode = "noalpha"
 
     def __len__(self) -> int:
         return self.img_count
@@ -104,9 +87,9 @@ class _EllipsesDataset(torch.utils.data.Dataset):
             img = torch.swapaxes(img.reshape(self.img_size,self.img_size,4), 0, 2).to(torch.float32)[0:1]/255.0
         else:
             raise NotImplementedError()
+        plt.close()
         if self.transform != None:
             img = self.transform(img)
-        plt.close()
         return img, 0
 
 
@@ -115,30 +98,24 @@ class EllipsesDataModule(pl.LightningDataModule):
     def __init__(self, config: omegaconf.DictConfig) -> None:
         super().__init__()
         self.config = config
-        # g_cuda = torch.Generator(device='cuda')
-        # g_cuda.initial_seed()
-
-        v_compose = []
-        if config.dataset.blurred:
-            # v_compose.append(torchvision.transforms.Lambda(lambda x: torchvision.transforms.functional.gaussian_blur(x, 5, 2.5))) # old line (can be deleted)
-            v_compose.append(torchvision.transforms.GaussianBlur(kernel_size=5, sigma=2.5))
-            
-        # v_compose.append(torchvision.transforms.Lambda(lambda x: torchvision.transforms.Resize(size=config.resized_shape)(x))) # old line (can be deleted)
-        v_compose.append(torchvision.transforms.Resize(size=config.resized_shape)) # !!! IMPORTANT !!! comment this line if you want "original"
-
-        if len(v_compose)==0:
-            self.dataset_transform = None
-        else:
-            self.dataset_transform = torchvision.transforms.Compose(v_compose)
 
     def train_dataloader(self) -> torch.utils.data.DataLoader:
-        training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform) # if self.config.dataset.blurred else None)
+        training_transform = torchvision.transforms.Compose([
+            torchvision.transforms.Lambda(lambda x: torchvision.transforms.functional.gaussian_blur(x, 5, 2.5))
+        ])
+        training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, training_transform if self.config.dataset.blurred else None)
         return torch.utils.data.DataLoader(training_dataset, drop_last=self.config.drop_last_training_batch, batch_size=self.config.training_batch_size, shuffle=self.config.shuffle_training_data, num_workers=self.config.num_workers)
     
     def val_dataloader(self) -> torch.utils.data.DataLoader:
-        validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform) # if self.config.dataset.blurred else None)
+        validation_transform = torchvision.transforms.Compose([
+            torchvision.transforms.Lambda(lambda x: torchvision.transforms.functional.gaussian_blur(x, 5, 2.5))
+        ])
+        validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, validation_transform if self.config.dataset.blurred else None)
         return torch.utils.data.DataLoader(validation_dataset, drop_last=self.config.drop_last_validation_batch, batch_size=self.config.validation_batch_size, shuffle=self.config.shuffle_validation_data, num_workers=self.config.num_workers)
 
     def test_dataloader(self) -> torch.utils.data.DataLoader:
-        test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform) # if self.config.dataset.blurred else None)
+        test_transform = torchvision.transforms.Compose([
+            torchvision.transforms.Lambda(lambda x: torchvision.transforms.functional.gaussian_blur(x, 5, 2.5))
+        ])
+        test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, test_transform if self.config.dataset.blurred else None)
         return torch.utils.data.DataLoader(test_dataset, drop_last=self.config.drop_last_test_batch, batch_size=self.config.test_batch_size, shuffle=self.config.shuffle_test_data, num_workers=self.config.num_workers)

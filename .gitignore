@@ -1,3 +1,6 @@
 __pycache__/
 /.vscode/
 /runs
+/LearnedRadonFilters
+/learned_old
+config.pkl

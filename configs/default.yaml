@@ -2,7 +2,8 @@
 hydra:
     job:
         chdir: true
-        name: "_debug"
+        name: "_debug_normalised_10ellipses_5e-3noise__learned_256_128_lr05_test", # _debug_normalised_${dataset.ellipse_count}ellipses_${dataset.resized_shape}
+
     run:
         dir: ${out_dir}/${hydra.job.name}
     sweep:
@@ -14,15 +15,15 @@ hydra:
                 filename: ${hydra.runtime.output_dir}/run.log
 
 #####General settings#####
-out_dir: /data/sciebo/experiments/LearnedRadonFilters
+out_dir: ./LearnedRadonFilters
 deterministic: true
 seed: 1234567
 device: "cuda"
-num_workers: -1
+num_workers: 4 #1 #-1
 
 #####Extern settings#####
 defaults:
-    - model: learned
+    - model: learned #analytic , learned , svd , svd_analytic
     - dataset: ellipses
     - override hydra/job_logging: colorlog
     - override hydra/hydra_logging: colorlog
@@ -45,11 +46,12 @@ drop_last_test_batch: true
 
 sino_angles: null #${eval:"torch.linspace(0.0,3.14159265359,257)[:-1].tolist()"}
 sino_positions: null
-noise_level: 1.0
+noise_level: 5e-3 # 4e-3 #0.0
 
 #####Run settings#####
-optimizer_lr: 1e-3
-epochs: 3
+optimizer_lr: 0.5 #0.5 #0.1 #1e-3
+epochs: 3 #50
 training_batch_count: -1
 validation_batch_count: -1
 test_batch_count: -1
+resized_shape: 128 # 256 # 64

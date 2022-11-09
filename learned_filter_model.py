@@ -20,11 +20,13 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
-import submodules.radon as radon
+# import submodules.radon as radon
+import radon
 
 from utils import log_3d, log_img
 
-
+import sys
+check_python_version = (sys.version_info[0] >= 3) and (sys.version_info[1] >= 10)
 
 class LearnedFilterModel(pl.LightningModule):
     def __init__(self, config: omegaconf.DictConfig) -> None:
@@ -141,7 +143,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
 
-    def validation_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,torch.Tensor|None]:
+    def validation_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,torch.Tensor|None if check_python_version else typing.Union[torch.Tensor, None]]:
         #Reset metrics
         self.validation_loss_metric.reset()
         self.validation_psnr_metric.reset()
@@ -164,7 +166,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
 
-    def validation_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor]]]) -> None:
+    def validation_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor] if check_python_version else typing.Union[torch.Tensor, list[torch.Tensor]]]]) -> None:
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -202,7 +204,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
 
-    def test_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,torch.Tensor|list[torch.Tensor]]:
+    def test_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,torch.Tensor|list[torch.Tensor] if check_python_version else typing.Union[torch.Tensor, list[torch.Tensor]]]:
         #Reset metrics
         self.test_loss_metric.reset()
         self.test_psnr_metric.reset()
@@ -227,7 +229,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
 
-    def test_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor]]]) -> None:
+    def test_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor] if check_python_version else typing.Union[torch.Tensor, list[torch.Tensor]]]]) -> None:
         torch.save(self.filter_params, "coefficients.pt")
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment

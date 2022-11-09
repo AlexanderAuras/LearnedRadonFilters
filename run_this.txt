@@ -1,0 +1,2 @@
+c:/Users/danil/Desktop/oct2022/py396_2022/Scripts/python.exe c:/Users/danil/Desktop/oct2022/MBe-MM-MBu/LearnedRadonFilters/main.py -m dataset.ellipse_count=10 dataset.resized_shape=128,64
+

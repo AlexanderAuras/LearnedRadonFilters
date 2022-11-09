@@ -32,12 +32,15 @@ from analytic_filter_model import AnalyticFilterModel
 from learned_svd_model import LearnedSVDModel
 from analytic_svd_model import AnalyticSVDModel
 
+import typing
+import sys
+check_python_version = (sys.version_info[0] >= 3) and (sys.version_info[1] >= 10)
 
 #Custom version of pytorch lightnings TensorBoardLogger, to allow manipulation of internal logging settings
 class CustomTensorBoardLogger(pytorch_lightning.loggers.TensorBoardLogger):
     #Disables logging of epoch
     @pytorch_lightning.utilities.rank_zero_only
-    def log_metrics(self, metrics: dict[str, torch.Tensor|float], step: int) -> None:
+    def log_metrics(self, metrics: dict[str, torch.Tensor|float if check_python_version else typing.Union[torch.Tensor, float]], step: int) -> None:
         metrics.pop("epoch", None)
         return super().log_metrics(metrics, step)
     
@@ -52,6 +55,25 @@ class CustomTensorBoardLogger(pytorch_lightning.loggers.TensorBoardLogger):
 
 @hydra.main(config_path="configs", config_name="default", version_base=None)
 def main(config: omegaconf.DictConfig) -> None:
+    #import os
+    #print(os.getcwd())
+    #print(type(config))
+    #print(config)
+    #import pickle
+    #with open('config_09nov.pkl', 'wb') as fp:
+    #    pickle.dump(config, fp)
+    #exit()
+    
+    # #Change some "config" values
+    # config.test_batch_count = 1
+    # config.test_batch_size  = 1000
+
+    config.dataset.img_size  = 256 # 64 #256 # !!! WARNING !!! this value will be temporarily changed later on for the model (not for the dataset)
+    config.dataset.ellipse_count = 10 # 1
+    config.dataset.ellipse_size = 50
+    config.dataset.ellipse_size_min = 50
+    config.dataset.blurred = False
+    
     #Setup logging
     logger = logging.getLogger(__name__)
     logging.captureWarnings(True)
@@ -61,10 +83,12 @@ def main(config: omegaconf.DictConfig) -> None:
             os.remove(os.path.join(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir, old_log))
 
     #Append current git commit hash to saved config
+    """
     with open(os.path.join(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir,".hydra","config.yaml"), "a") as cfg_file:
         cfg_file.write(f"git_project: {subprocess.check_output(['git', 'config', '--get', 'remote.origin.url'], cwd=hydra.utils.get_original_cwd()).decode('ascii').strip()}\n")
         cfg_file.write(f"git_branch: {subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd=hydra.utils.get_original_cwd()).decode('ascii').strip()}\n")
         cfg_file.write(f"git_commit: {subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=hydra.utils.get_original_cwd()).decode('ascii').strip()}\n")
+    """
 
     #Set num_workers to available CPU count
     if config.num_workers == -1:
@@ -75,6 +99,8 @@ def main(config: omegaconf.DictConfig) -> None:
         pytorch_lightning.seed_everything(config.seed, workers=True)
 
     #Create model and load data
+    old_config_dataset_img_size = config.dataset.img_size
+    config.dataset.img_size = config.resized_shape
     if config.model.name == "analytic":
         modelClass = AnalyticFilterModel
     elif config.model.name == "learned":
@@ -89,6 +115,7 @@ def main(config: omegaconf.DictConfig) -> None:
         model = modelClass.load_from_checkpoint(os.path.abspath(os.path.join("../../" if hydra.core.hydra_config.HydraConfig.get().mode == hydra.types.RunMode.MULTIRUN else "../", config.checkpoint)), config=config)
     else:
         model = modelClass(config)
+    config.dataset.img_size = old_config_dataset_img_size
     if config.dataset.name == "MNIST":
         datamodule = MNISTDataModule(config)
     elif config.dataset.name == "ellipses":

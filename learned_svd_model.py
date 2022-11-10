@@ -19,7 +19,7 @@ import matplotlib
 matplotlib.use("agg")
 import matplotlib.pyplot as plt
 
-import submodules.radon as radon
+import radon as radon
 
 from utils import log_img
 

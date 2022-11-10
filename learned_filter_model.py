@@ -20,7 +20,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
-import submodules.radon as radon
+import radon as radon
 
 from utils import log_3d, log_img
 

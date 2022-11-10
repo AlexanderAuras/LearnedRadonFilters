@@ -73,6 +73,13 @@ def main(config: omegaconf.DictConfig) -> None:
     #Initialize determinism
     if config.deterministic:
         pytorch_lightning.seed_everything(config.seed, workers=True)
+        
+    if config.dataset.name == "MNIST":
+        datamodule = MNISTDataModule(config)
+    elif config.dataset.name == "ellipses":
+        datamodule = EllipsesDataModule(config)
+    else:
+        raise NotImplementedError()
 
     #Create model and load data
     if config.model.name == "analytic":
@@ -89,12 +96,6 @@ def main(config: omegaconf.DictConfig) -> None:
         model = modelClass.load_from_checkpoint(os.path.abspath(os.path.join("../../" if hydra.core.hydra_config.HydraConfig.get().mode == hydra.types.RunMode.MULTIRUN else "../", config.checkpoint)), config=config)
     else:
         model = modelClass(config)
-    if config.dataset.name == "MNIST":
-        datamodule = MNISTDataModule(config)
-    elif config.dataset.name == "ellipses":
-        datamodule = EllipsesDataModule(config)
-    else:
-        raise NotImplementedError()
 
     #Execute training and testing
     with warnings.catch_warnings():
@@ -103,7 +104,7 @@ def main(config: omegaconf.DictConfig) -> None:
         trainer = pytorch_lightning.Trainer(
             deterministic=config.deterministic, 
             callbacks=[pytorch_lightning.callbacks.ModelCheckpoint(dirpath=".")], 
-            accelerator="gpu" if config.device == "cuda" else None, gpus = 1,
+            accelerator="gpu" if config.device == "cuda" else None, devices=1,
             max_epochs=config.epochs, 
             logger=CustomTensorBoardLogger(hydra.core.hydra_config.HydraConfig.get().runtime.output_dir, None, ""), 
             limit_train_batches=int(config.training_batch_count) if config.training_batch_count != -1 else len(datamodule.train_dataloader()), 

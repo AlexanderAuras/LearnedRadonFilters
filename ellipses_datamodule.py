@@ -20,7 +20,7 @@ check_python_version = (sys.version_info[0] >= 3) and (sys.version_info[1] >= 10
 
 
 class _EllipsesDataset(torch.utils.data.Dataset):
-    def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1, transform: typing.Callable[[torch.Tensor],torch.Tensor]|None if check_python_version else typing.Union[typing.Callable[[torch.Tensor],torch.Tensor] , None] = None, number_ellipses_poisson=False, random_size=True, generator: torch.Generator|None=None):
+    def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1, transform: typing.Callable[[torch.Tensor],torch.Tensor]|None if check_python_version else typing.Union[typing.Callable[[torch.Tensor],torch.Tensor] , None] = None, number_ellipses_poisson=False, random_size=True, generator: torch.Generator|None if check_python_version else typing.Union[torch.Generator, None] =None):
         self.img_count = img_count
         self.img_size = img_size
         if number_ellipses_poisson == True:
@@ -116,11 +116,11 @@ class EllipsesDataModule(pl.LightningDataModule):
         super().__init__()
         self.config = config
         self.training_generator = torch.Generator()
-        self.training_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
+        self.training_generator.manual_seed(torch.randint(0, 999_999_999_999_999, (1,)).item())
         self.validation_generator = torch.Generator()
-        self.validation_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
+        self.validation_generator.manual_seed(torch.randint(0, 999_999_999_999_999, (1,)).item())
         self.test_generator = torch.Generator()
-        self.test_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
+        self.test_generator.manual_seed(torch.randint(0, 999_999_999_999_999, (1,)).item())
 
         v_compose = []
         if config.dataset.blurred:

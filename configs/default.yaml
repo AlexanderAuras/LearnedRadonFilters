@@ -2,7 +2,7 @@
 hydra:
     job:
         chdir: true
-        name: "_debug_normalised_10ellipses_5e-3noise__learned_256_128_lr05_test", # _debug_normalised_${dataset.ellipse_count}ellipses_${dataset.resized_shape}
+        name: "_debug_normalised_10ellipses_5e-3noise__learned_256_128_lr05_test" # _debug_normalised_${dataset.ellipse_count}ellipses_${dataset.resized_shape}
 
     run:
         dir: ${out_dir}/${hydra.job.name}

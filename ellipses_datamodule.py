@@ -20,28 +20,28 @@ check_python_version = (sys.version_info[0] >= 3) and (sys.version_info[1] >= 10
 
 
 class _EllipsesDataset(torch.utils.data.Dataset):
-    def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1, transform: typing.Callable[[torch.Tensor],torch.Tensor]|None if check_python_version else typing.Union[typing.Callable[[torch.Tensor],torch.Tensor] , None] = None, number_ellipses_poisson=False, random_size=True):
+    def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1, transform: typing.Callable[[torch.Tensor],torch.Tensor]|None if check_python_version else typing.Union[typing.Callable[[torch.Tensor],torch.Tensor] , None] = None, number_ellipses_poisson=False, random_size=True, generator: torch.Generator|None=None):
         self.img_count = img_count
         self.img_size = img_size
         if number_ellipses_poisson == True:
-            self.ellipses_count = torch.poisson(torch.full((img_count,), ellipses_count).to(torch.float32)).to(torch.int32)
+            self.ellipses_count = torch.poisson(torch.full((img_count,), ellipses_count).to(torch.float32), generator=generator).to(torch.int32)
         else:
             self.ellipses_count = (torch.full((img_count,), ellipses_count).to(torch.float32)).to(torch.int32)
         real_ellipses_count = self.ellipses_count.sum()
-        self.ellipse_angle = torch.rand((real_ellipses_count,))*360.0
-        self.ellipse_alpha = torch.rand((real_ellipses_count,))*0.9+0.1
-        self.ellipse_width_aa  = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
-        self.ellipse_height_aa = torch.rand((real_ellipses_count,))*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
-        self.ellipse_x_raw = torch.rand((real_ellipses_count,))
-        self.ellipse_y_raw = torch.rand((real_ellipses_count,))
+        self.ellipse_angle = torch.rand((real_ellipses_count,), generator=generator)*360.0
+        self.ellipse_alpha = torch.rand((real_ellipses_count,), generator=generator)*0.9+0.1
+        self.ellipse_width_aa  = torch.rand((real_ellipses_count,), generator=generator)*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
+        self.ellipse_height_aa = torch.rand((real_ellipses_count,), generator=generator)*max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
+        self.ellipse_x_raw = torch.rand((real_ellipses_count,), generator=generator)
+        self.ellipse_y_raw = torch.rand((real_ellipses_count,), generator=generator)
 
-        r = torch.rand((real_ellipses_count,))*0.3
-        alpha = torch.rand((real_ellipses_count,))*2.0*torch.pi
+        r = torch.rand((real_ellipses_count,), generator=generator)*0.3
+        alpha = torch.rand((real_ellipses_count,), generator=generator)*2.0*torch.pi
         self.ellipse_x_raw = torch.cos(alpha)*r+0.5
         self.ellipse_y_raw = torch.sin(alpha)*r+0.5
         if random_size:
-            self.ellipse_width_aa  = torch.rand((real_ellipses_count,))*0.15*img_size+0.05*img_size#max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
-            self.ellipse_height_aa = torch.rand((real_ellipses_count,))*0.15*img_size+0.05*img_size#max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
+            self.ellipse_width_aa  = torch.rand((real_ellipses_count,), generator=generator)*0.15*img_size+0.05*img_size#max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
+            self.ellipse_height_aa = torch.rand((real_ellipses_count,), generator=generator)*0.15*img_size+0.05*img_size#max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
         else:
             self.ellipse_width_aa  = torch.ones(real_ellipses_count)*ellipses_size #max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
             self.ellipse_height_aa = torch.ones(real_ellipses_count)*ellipses_size #max(0.0, ellipses_size-ellipses_size_min)+ellipses_size_min
@@ -115,8 +115,12 @@ class EllipsesDataModule(pl.LightningDataModule):
     def __init__(self, config: omegaconf.DictConfig) -> None:
         super().__init__()
         self.config = config
-        # g_cuda = torch.Generator(device='cuda')
-        # g_cuda.initial_seed()
+        self.training_generator = torch.Generator()
+        self.training_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
+        self.validation_generator = torch.Generator()
+        self.validation_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
+        self.test_generator = torch.Generator()
+        self.test_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
 
         v_compose = []
         if config.dataset.blurred:
@@ -132,13 +136,13 @@ class EllipsesDataModule(pl.LightningDataModule):
             self.dataset_transform = torchvision.transforms.Compose(v_compose)
 
     def train_dataloader(self) -> torch.utils.data.DataLoader:
-        training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform) # if self.config.dataset.blurred else None)
+        training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.training_generator) # if self.config.dataset.blurred else None)
         return torch.utils.data.DataLoader(training_dataset, drop_last=self.config.drop_last_training_batch, batch_size=self.config.training_batch_size, shuffle=self.config.shuffle_training_data, num_workers=self.config.num_workers)
     
     def val_dataloader(self) -> torch.utils.data.DataLoader:
-        validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform) # if self.config.dataset.blurred else None)
+        validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.validation_generator) # if self.config.dataset.blurred else None)
         return torch.utils.data.DataLoader(validation_dataset, drop_last=self.config.drop_last_validation_batch, batch_size=self.config.validation_batch_size, shuffle=self.config.shuffle_validation_data, num_workers=self.config.num_workers)
 
     def test_dataloader(self) -> torch.utils.data.DataLoader:
-        test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform) # if self.config.dataset.blurred else None)
+        test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.test_generator) # if self.config.dataset.blurred else None)
         return torch.utils.data.DataLoader(test_dataset, drop_last=self.config.drop_last_test_batch, batch_size=self.config.test_batch_size, shuffle=self.config.shuffle_test_data, num_workers=self.config.num_workers)

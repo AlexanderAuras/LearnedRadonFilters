@@ -102,9 +102,9 @@ class EllipsesDataModule(pl.LightningDataModule):
     def __init__(self, config: omegaconf.DictConfig) -> None:
         super().__init__()
         self.config = config
-        self.training_seed = torch.randint(0, 999_999_999_999_999).item()
-        self.validation_seed = torch.randint(0, 999_999_999_999_999).item()
-        self.test_seed = torch.randint(0, 999_999_999_999_999).item()
+        self.training_seed = torch.randint(0, 999_999_999_999_999, (1,)).item()
+        self.validation_seed = torch.randint(0, 999_999_999_999_999, (1,)).item()
+        self.test_seed = torch.randint(0, 999_999_999_999_999, (1,)).item()
 
     def train_dataloader(self) -> torch.utils.data.DataLoader:
         training_transform = torchvision.transforms.Compose([

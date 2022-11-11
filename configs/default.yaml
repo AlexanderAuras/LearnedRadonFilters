@@ -2,7 +2,7 @@
 hydra:
     job:
         chdir: true
-        name: "_debug_normalised_10ellipses_5e-3noise__learned_256_128_lr05_test" # _debug_normalised_${dataset.ellipse_count}ellipses_${dataset.resized_shape}
+        name: "_debug_normalised_10ellipses_5e-3noise__learned_256_${resized_shape}_lr05_test__fixed_seed_v1.03" # _debug_normalised_${dataset.ellipse_count}ellipses_${dataset.resized_shape}
 
     run:
         dir: ${out_dir}/${hydra.job.name}
@@ -54,4 +54,4 @@ epochs: 3 #50
 training_batch_count: -1
 validation_batch_count: -1
 test_batch_count: -1
-resized_shape: 128 # 256 # 64
+resized_shape: 128 # ${resized_shape} # 128 # 256 # 64

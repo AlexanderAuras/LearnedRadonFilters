@@ -96,7 +96,12 @@ def main(config: omegaconf.DictConfig) -> None:
     
     #Initialize determinism
     if config.deterministic:
+        torch.use_deterministic_algorithms(True) 
         pytorch_lightning.seed_everything(config.seed, workers=True)
+        import random
+        random.seed(0)
+        torch.backends.cudnn.benchmark = False
+
     
     if config.dataset.name == "MNIST":
         datamodule = MNISTDataModule(config)

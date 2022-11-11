@@ -109,18 +109,26 @@ class _EllipsesDataset(torch.utils.data.Dataset):
         plt.close()
         return img, 0
 
+import random
+def seed_worker(worker_id):
+    try:
+        worker_seed = torch.cuda.initial_seed() % 2**32
+    except:
+        worker_seed = torch.initial_seed() % 2**32
 
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 class EllipsesDataModule(pl.LightningDataModule):
     def __init__(self, config: omegaconf.DictConfig) -> None:
         super().__init__()
-        self.config = config
+        self.config = config.copy()
         self.training_generator = torch.Generator()
-        self.training_generator.manual_seed(torch.randint(0, 999_999_999_999_999, (1,)).item())
+        self.training_generator.manual_seed(1234567) #(torch.randint(0, 999_999_999_999_999, (1,)).item())
         self.validation_generator = torch.Generator()
-        self.validation_generator.manual_seed(torch.randint(0, 999_999_999_999_999, (1,)).item())
+        self.validation_generator.manual_seed(1234568) #(torch.randint(0, 999_999_999_999_999, (1,)).item())
         self.test_generator = torch.Generator()
-        self.test_generator.manual_seed(torch.randint(0, 999_999_999_999_999, (1,)).item())
+        self.test_generator.manual_seed(1234569) #(torch.randint(0, 999_999_999_999_999, (1,)).item())
 
         v_compose = []
         if config.dataset.blurred:
@@ -135,14 +143,32 @@ class EllipsesDataModule(pl.LightningDataModule):
         else:
             self.dataset_transform = torchvision.transforms.Compose(v_compose)
 
+        # create training data only once
+        self.training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.training_generator) # if self.config.dataset.blurred else None)
+
+        # create validation data only once
+        self.validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.validation_generator) # if self.config.dataset.blurred else None)
+
+        # create test data only once
+        self.test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.test_generator) # if self.config.dataset.blurred else None)
+        
+
     def train_dataloader(self) -> torch.utils.data.DataLoader:
-        training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.training_generator) # if self.config.dataset.blurred else None)
-        return torch.utils.data.DataLoader(training_dataset, drop_last=self.config.drop_last_training_batch, batch_size=self.config.training_batch_size, shuffle=self.config.shuffle_training_data, num_workers=self.config.num_workers)
+        #self.training_generator.manual_seed(1234567)
+        #training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.training_generator) # if self.config.dataset.blurred else None)
+        #return torch.utils.data.DataLoader(training_dataset, drop_last=self.config.drop_last_training_batch, batch_size=self.config.training_batch_size, shuffle=self.config.shuffle_training_data, num_workers=self.config.num_workers, generator=self.training_generator, worker_init_fn=seed_worker)
+        return torch.utils.data.DataLoader(self.training_dataset, drop_last=self.config.drop_last_training_batch, batch_size=self.config.training_batch_size, shuffle=self.config.shuffle_training_data, num_workers=self.config.num_workers, generator=self.training_generator, worker_init_fn=seed_worker)
     
     def val_dataloader(self) -> torch.utils.data.DataLoader:
-        validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.validation_generator) # if self.config.dataset.blurred else None)
-        return torch.utils.data.DataLoader(validation_dataset, drop_last=self.config.drop_last_validation_batch, batch_size=self.config.validation_batch_size, shuffle=self.config.shuffle_validation_data, num_workers=self.config.num_workers)
+        #self.validation_generator.manual_seed(1234568)
+        #validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.validation_generator) # if self.config.dataset.blurred else None)
+        #return torch.utils.data.DataLoader(validation_dataset, drop_last=self.config.drop_last_validation_batch, batch_size=self.config.validation_batch_size, shuffle=self.config.shuffle_validation_data, num_workers=self.config.num_workers, generator=self.validation_generator, worker_init_fn=seed_worker)
+        return torch.utils.data.DataLoader(self.validation_dataset, drop_last=self.config.drop_last_validation_batch, batch_size=self.config.validation_batch_size, shuffle=self.config.shuffle_validation_data, num_workers=self.config.num_workers, generator=self.validation_generator, worker_init_fn=seed_worker)
 
     def test_dataloader(self) -> torch.utils.data.DataLoader:
-        test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.test_generator) # if self.config.dataset.blurred else None)
-        return torch.utils.data.DataLoader(test_dataset, drop_last=self.config.drop_last_test_batch, batch_size=self.config.test_batch_size, shuffle=self.config.shuffle_test_data, num_workers=self.config.num_workers)
+        print("I'm in test_dataloader.")
+        print(f"self.config.dataset.img_size is {self.config.dataset.img_size}")
+        #self.test_generator.manual_seed(1234569)
+        #test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, self.dataset_transform, self.test_generator) # if self.config.dataset.blurred else None)
+        #return torch.utils.data.DataLoader(test_dataset, drop_last=self.config.drop_last_test_batch, batch_size=self.config.test_batch_size, shuffle=self.config.shuffle_test_data, num_workers=self.config.num_workers, generator=self.test_generator, worker_init_fn=seed_worker)
+        return torch.utils.data.DataLoader(self.test_dataset, drop_last=self.config.drop_last_test_batch, batch_size=self.config.test_batch_size, shuffle=self.config.shuffle_test_data, num_workers=self.config.num_workers, generator=self.test_generator, worker_init_fn=seed_worker)

@@ -102,30 +102,33 @@ class EllipsesDataModule(pl.LightningDataModule):
     def __init__(self, config: omegaconf.DictConfig) -> None:
         super().__init__()
         self.config = config
-        self.training_generator = torch.Generator()
-        self.training_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
-        self.validation_generator = torch.Generator()
-        self.validation_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
-        self.test_generator = torch.Generator()
-        self.test_generator.manual_seed(torch.randint(0, 999_999_999_999_999))
+        self.training_seed = torch.randint(0, 999_999_999_999_999).item()
+        self.validation_seed = torch.randint(0, 999_999_999_999_999).item()
+        self.test_seed = torch.randint(0, 999_999_999_999_999).item()
 
     def train_dataloader(self) -> torch.utils.data.DataLoader:
         training_transform = torchvision.transforms.Compose([
             torchvision.transforms.Lambda(lambda x: torchvision.transforms.functional.gaussian_blur(x, 5, 2.5))
         ])
-        training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, training_transform if self.config.dataset.blurred else None, self.training_generator)
+        generator = torch.Generator()
+        generator.manual_seed(self.training_seed)
+        training_dataset = _EllipsesDataset((640 if self.config.training_batch_count == -1 else self.config.training_batch_count)*self.config.training_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, training_transform if self.config.dataset.blurred else None, generator)
         return torch.utils.data.DataLoader(training_dataset, drop_last=self.config.drop_last_training_batch, batch_size=self.config.training_batch_size, shuffle=self.config.shuffle_training_data, num_workers=self.config.num_workers)
     
     def val_dataloader(self) -> torch.utils.data.DataLoader:
         validation_transform = torchvision.transforms.Compose([
             torchvision.transforms.Lambda(lambda x: torchvision.transforms.functional.gaussian_blur(x, 5, 2.5))
         ])
-        validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, validation_transform if self.config.dataset.blurred else None, self.validation_generator)
+        generator = torch.Generator()
+        generator.manual_seed(self.validation_seed)
+        validation_dataset = _EllipsesDataset((160 if self.config.validation_batch_count == -1 else self.config.validation_batch_count)*self.config.validation_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, validation_transform if self.config.dataset.blurred else None, generator)
         return torch.utils.data.DataLoader(validation_dataset, drop_last=self.config.drop_last_validation_batch, batch_size=self.config.validation_batch_size, shuffle=self.config.shuffle_validation_data, num_workers=self.config.num_workers)
 
     def test_dataloader(self) -> torch.utils.data.DataLoader:
         test_transform = torchvision.transforms.Compose([
             torchvision.transforms.Lambda(lambda x: torchvision.transforms.functional.gaussian_blur(x, 5, 2.5))
         ])
-        test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, test_transform if self.config.dataset.blurred else None, self.test_generator)
+        generator = torch.Generator()
+        generator.manual_seed(self.test_seed)
+        test_dataset = _EllipsesDataset((200 if self.config.test_batch_count == -1 else self.config.test_batch_count)*self.config.test_batch_size, self.config.dataset.img_size, self.config.dataset.ellipse_count, self.config.dataset.ellipse_size, self.config.dataset.ellipse_size_min, test_transform if self.config.dataset.blurred else None, generator)
         return torch.utils.data.DataLoader(test_dataset, drop_last=self.config.drop_last_test_batch, batch_size=self.config.test_batch_size, shuffle=self.config.shuffle_test_data, num_workers=self.config.num_workers)

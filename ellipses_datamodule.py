@@ -18,7 +18,7 @@ import numpy as np
 
 
 class _EllipsesDataset(torch.utils.data.Dataset):
-    def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1, transform: typing.Callable[[torch.Tensor],torch.Tensor]|None=None, generator: torch.Generator|None=None):
+    def __init__(self, img_count: int, img_size: int, ellipses_count: int, ellipses_size: float, ellipses_size_min: float=1, transform: typing.Union[typing.Callable[[torch.Tensor],torch.Tensor],None]=None, generator: typing.Union[torch.Generator,None]=None):
         self.img_count = img_count
         self.img_size = img_size
         self.ellipses_count = torch.poisson(torch.full((img_count,), ellipses_count).to(torch.float32), generator=generator).to(torch.int32)

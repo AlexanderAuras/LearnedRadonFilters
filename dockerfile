@@ -58,7 +58,7 @@ EXPOSE 6006
 WORKDIR /home/lrf_user/LearnedRadonFilters
 CMD bash
 
-#docker run --gpus all -v /data/sciebo/experiments/LearnedRadonFilters:/home/lrf_user/LearnedRadonFilters/runs -p 6006:6006 -t -i lrf
+#docker run --rm --gpus all -v /data/sciebo/experiments/LearnedRadonFilters:/home/lrf_user/LearnedRadonFilters/runs -p 6006:6006 -t -i lrf
 #conda activate LRF
 #tensorboard --logdir=/home/lrf_user/LearnedRadonFilters/runs &
 #/home/lrf_user/anaconda3/envs/LRF/bin/python /home/lrf_user/LearnedRadonFilters/main.py

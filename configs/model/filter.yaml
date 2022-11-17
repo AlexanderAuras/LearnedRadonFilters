@@ -1,2 +1,3 @@
 name: "filter"
-initialization: "zeros"
+initialization: "path"
+initialization_path: "./runs/"

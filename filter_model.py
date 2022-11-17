@@ -66,8 +66,11 @@ class FilterModel(pl.LightningModule):
             self.filter_params = torch.nn.parameter.Parameter(
                 torch.abs(torch.arange(0, int(positions_count//2+1))).to(torch.float32).repeat(angles_count,1)*2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angles_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
             )
-        elif self.config.model.initialization == "opti":
-            self.filter_params = torch.nn.parameter.Parameter(torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned_20epchs/noise_level=0/coefficients.pt"))
+        elif self.config.model.initialization == "path":
+            init_data = torch.load(self.config.model.initialization_path)
+            if isinstance(init_data, torch.nn.parameter.Parameter):
+                init_data = torch.nn.utils.convert_parameters.parameters_to_vector(init_data).reshape(init_data.shape)
+            self.filter_params = torch.nn.parameter.Parameter(init_data)
         else:
             raise NotImplementedError()
         self.angles = torch.nn.parameter.Parameter(torch.tensor(self.config.sino_angles), requires_grad=False) if self.config.sino_angles != None else None
@@ -388,10 +391,10 @@ class FilterModel(pl.LightningModule):
 
 
     def test_epoch_end(self, outputs: list[dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]]) -> None:
-        torch.save(self.filter_params, "coefficients.pt")
-        torch.save(self.pi/self.count, "pi.pt")
-        torch.save(self.delta/self.count, "delta.pt")
-        torch.save(self.gamma/self.count, "gamma.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.filter_params).reshape(self.filter_params.shape), "coefficients.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/self.count, "pi.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/self.count, "delta.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.gamma).reshape(self.gamma.shape)/self.count, "gamma.pt")
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 

@@ -28,7 +28,7 @@ defaults:
     - override hydra/hydra_logging: colorlog
     - _self_
 
-#####Network settings#####
+#####Loading settings#####
 checkpoint: null
 
 ######Data settings#####

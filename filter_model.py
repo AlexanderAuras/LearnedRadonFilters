@@ -1,5 +1,5 @@
 import inspect
-from math import ceil
+from math import ceil, sqrt
 import typing
 import warnings
 
@@ -60,6 +60,14 @@ class FilterModel(pl.LightningModule):
                     int(len(self.config.sino_positions)//2+1) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2.0)+1
                 ))
             )
+        elif self.config.model.initialization == "ramp":
+            positions_count = len(self.config.sino_positions) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2)*2+1
+            angles_count = len(self.config.sino_angles) if self.config.sino_angles != None else 256
+            self.filter_params = torch.nn.parameter.Parameter(
+                torch.abs(torch.arange(0, int(positions_count//2+1))).to(torch.float32).repeat(angles_count,1)*2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angles_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
+            )
+        elif self.config.model.initialization == "opti":
+            self.filter_params = torch.nn.parameter.Parameter(torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned_20epchs/noise_level=0/coefficients.pt"))
         else:
             raise NotImplementedError()
         self.angles = torch.nn.parameter.Parameter(torch.tensor(self.config.sino_angles), requires_grad=False) if self.config.sino_angles != None else None
@@ -107,7 +115,11 @@ class FilterModel(pl.LightningModule):
             self.test_learned_input_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.test_learned_output_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             
-        self.ramp = torch.nn.parameter.Parameter(torch.arange(self.pi.shape[1], device=self.pi.device).unsqueeze(0), requires_grad=False)
+        positions_count = len(self.config.sino_positions) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2)*2+1
+        angles_count = len(self.config.sino_angles) if self.config.sino_angles != None else 256
+        self.ramp = torch.nn.parameter.Parameter(
+            torch.abs(torch.arange(0, int(positions_count//2+1))).to(torch.float32).repeat(angles_count,1)*2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angles_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count, requires_grad=False
+            )
         self.ramp[:,0] = 0.25
         #TODO Upload coefficients
         #self.ramp = torch.nn.parameter.Parameter(torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned/noise_level=0/coefficients.pt"), requires_grad=False)

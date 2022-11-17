@@ -19,13 +19,14 @@ import matplotlib
 matplotlib.use("agg")
 import matplotlib.pyplot as plt
 
-import submodules.radon as radon
+import radon
 
 from utils import log_img
 
 
 
 class LearnedSVDModel(pl.LightningModule):
+
     def __init__(self, config: omegaconf.DictConfig) -> None:
         super().__init__()
         self.config = config
@@ -199,7 +200,6 @@ class LearnedSVDModel(pl.LightningModule):
 
 
     def test_epoch_end(self, outputs: list[dict[str,torch.Tensor|list[torch.Tensor]]]) -> None:
-        torch.save(self.filter_params, "coefficients.pt")
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -217,7 +217,9 @@ class LearnedSVDModel(pl.LightningModule):
             axes.set_ylabel("Singular value")
             axes.plot(torch.arange(self.filter_params.shape[0]), self.filter_params.detach().to("cpu"))
             logger.add_figure("test/singular_values", figure, 0)
-
+            print(":|")
+            torch.save(self.filter_params, "coefficients.pt")
+            print(":)")
             #Log examples
             for i in range(10):
                 sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["sinogram"][0,0]

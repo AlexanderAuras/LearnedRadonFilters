@@ -1,5 +1,5 @@
 import inspect
-from math import ceil
+from math import ceil, sqrt
 import typing
 import warnings
 
@@ -20,7 +20,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 
-import submodules.radon as radon
+import radon
 
 from utils import log_3d, log_img
 
@@ -39,6 +39,17 @@ class LearnedFilterModel(pl.LightningModule):
                     int(len(self.config.sino_positions)//2+1) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2.0)+1
                 ))
             )
+        elif self.config.model.initialization == "ramp":
+            positions_count = len(self.config.sino_positions) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2)*2+1
+            angles_count = len(self.config.sino_angles) if self.config.sino_angles != None else 256
+            self.filter_params = torch.nn.parameter.Parameter(
+                torch.abs(torch.arange(0, int(positions_count//2+1))).to(torch.float32).repeat(angles_count,1)*2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angles_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count
+                )
+        elif self.config.model.initialization == "opti":
+            opti = torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned_20epchs/noise_level=0/coefficients.pt")
+            self.filter_params = torch.nn.parameter.Parameter(
+                opti
+                )
         elif self.config.model.initialization == "ones":
             self.filter_params = torch.nn.parameter.Parameter(
                 torch.ones((

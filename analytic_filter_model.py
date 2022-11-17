@@ -62,7 +62,12 @@ class AnalyticFilterModel(pl.LightningModule):
             self.test_input_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
             self.test_output_l2_metric = torchmetrics.MeanMetric(nan_strategy="ignore")
 
-        self.ramp = torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned/noise_level=0/coefficients.pt")
+        positions_count = len(self.config.sino_positions) if self.config.sino_positions != None else ceil(self.config.dataset.img_size*1.41421356237/2)*2+1
+        angles_count = len(self.config.sino_angles) if self.config.sino_angles != None else 256
+        self.ramp = torch.nn.parameter.Parameter(
+            torch.abs(torch.arange(0, int(positions_count//2+1))).to(torch.float32).repeat(angles_count,1)*2*ceil(sqrt(2.0)/2.0)*positions_count/(positions_count-1)/angles_count*self.config.dataset.img_size*2*ceil(sqrt(2.0)*self.config.dataset.img_size/2.0)/positions_count, requires_grad=False
+            )
+        #self.ramp = torch.load("/home/kabri/Documents/LearnedRadonFilters/results/fft_high_learned/noise_level=0/coefficients.pt")
 
 
 

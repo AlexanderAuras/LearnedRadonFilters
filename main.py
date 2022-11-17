@@ -82,6 +82,9 @@ def main(config: omegaconf.DictConfig) -> None:
     else:
         raise NotImplementedError()
 
+    if config.model.name == "analytic" or config.model.name == "svd_analytic":
+        config.epochs = 1
+
     #Create model and load data
     if config.model.name == "analytic":
         modelClass = AnalyticFilterModel

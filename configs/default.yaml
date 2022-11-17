@@ -16,13 +16,13 @@ hydra:
 #####General settings#####
 out_dir: /data/sciebo/experiments/LearnedRadonFilters
 deterministic: true
-seed: 1234567
+seed: 123456789
 device: "cuda"
 num_workers: -1
 
 #####Extern settings#####
 defaults:
-    - model: learned
+    - model: filter
     - dataset: ellipses
     - override hydra/job_logging: colorlog
     - override hydra/hydra_logging: colorlog
@@ -45,11 +45,11 @@ drop_last_test_batch: true
 
 sino_angles: null #${eval:"torch.linspace(0.0,3.14159265359,257)[:-1].tolist()"}
 sino_positions: null
-noise_level: 1.0
+noise_level: 5e-2
 
 #####Run settings#####
-optimizer_lr: 1e-3
-epochs: 3
+optimizer_lr: 1e-2
+epochs: 10
 training_batch_count: -1
 validation_batch_count: -1
 test_batch_count: -1

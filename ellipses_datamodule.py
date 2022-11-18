@@ -54,7 +54,7 @@ class _EllipsesDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return self.img_count
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
+    def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, int]:
         fig = plt.figure(figsize=(self.img_size,self.img_size), dpi=1)
         ax = fig.add_axes([0.0,0.0,1.0,1.0])
         ellipse_func = lambda w, h, a, t: (w/2.0*cos(t)*cos(a)-h/2.0*sin(t)*sin(a), w/2.0*cos(t)*sin(a)+h/2.0*sin(t)*cos(a))

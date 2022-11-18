@@ -62,7 +62,7 @@ class AnalyticSVDModel(pl.LightningModule):
 
 
     #HACK Removes metrics from PyTorch Lightning overview
-    def named_children(self) -> typing.Iterator[tuple[str, nn.Module]]:
+    def named_children(self) -> typing.Iterator[typing.Tuple[str, nn.Module]]:
         stack = inspect.stack()
         if stack[2].function == "summarize" and stack[2].filename.endswith("pytorch_lightning/utilities/model_summary/model_summary.py"):
             return filter(lambda x: not x[0].endswith("metric"), super().named_children())
@@ -97,7 +97,7 @@ class AnalyticSVDModel(pl.LightningModule):
     
 
 
-    def training_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> torch.Tensor:
         #Reset metrics
         self.training_loss_metric.reset()
         self.training_psnr_metric.reset()
@@ -130,7 +130,7 @@ class AnalyticSVDModel(pl.LightningModule):
 
 
 
-    def validation_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,typing.Union[torch.Tensor,None]]:
+    def validation_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> typing.Dict[str,typing.Union[torch.Tensor,None]]:
         #Reset metrics
         self.validation_loss_metric.reset()
         self.validation_psnr_metric.reset()
@@ -153,7 +153,7 @@ class AnalyticSVDModel(pl.LightningModule):
 
 
 
-    def validation_epoch_end(self, outputs: list[dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]]) -> None:
+    def validation_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -173,10 +173,10 @@ class AnalyticSVDModel(pl.LightningModule):
             logger.add_figure("validation/singular_values", figure, self.global_step)
 
             #Log examples
-            sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
-            noisy_sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["noisy_sinogram"][0,0]
-            ground_truth = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["ground_truth"][0,0]
-            reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["reconstruction"][0,0]
+            sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
+            noisy_sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["noisy_sinogram"][0,0]
+            ground_truth = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["ground_truth"][0,0]
+            reconstruction = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["reconstruction"][0,0]
             log_img(logger, "validation/sinogram", sinogram.mT, self.global_step)
             log_img(logger, "validation/noisy_sinogram", noisy_sinogram.mT, self.global_step)
             log_img(logger, "validation/ground_truth", ground_truth, self.global_step)
@@ -184,7 +184,7 @@ class AnalyticSVDModel(pl.LightningModule):
 
 
 
-    def test_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]:
+    def test_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]:
         #Reset metrics
         self.test_loss_metric.reset()
         self.test_psnr_metric.reset()
@@ -209,7 +209,7 @@ class AnalyticSVDModel(pl.LightningModule):
 
 
 
-    def test_epoch_end(self, outputs: list[dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]]) -> None:
+    def test_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -238,10 +238,10 @@ class AnalyticSVDModel(pl.LightningModule):
 
             #Log examples
             for i in range(10):
-                sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["sinogram"][0,0]
-                noisy_sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["noisy_sinogram"][0,0]
-                ground_truth = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["ground_truth"][0,0]
-                reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["reconstruction"][0,0]
+                sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["sinogram"][0,0]
+                noisy_sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["noisy_sinogram"][0,0]
+                ground_truth = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["ground_truth"][0,0]
+                reconstruction = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["reconstruction"][0,0]
                 log_img(logger, "test/sinogram", sinogram.mT, i)
                 log_img(logger, "test/noisy_sinogram", noisy_sinogram.mT, i)
                 log_img(logger, "test/ground_truth", ground_truth, i)

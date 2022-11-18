@@ -86,7 +86,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
     #HACK Removes metrics from PyTorch Lightning overview
-    def named_children(self) -> typing.Iterator[tuple[str, nn.Module]]:
+    def named_children(self) -> typing.Iterator[typing.Tuple[str, nn.Module]]:
         stack = inspect.stack()
         if stack[2].function == "summarize" and stack[2].filename.endswith("pytorch_lightning/utilities/model_summary/model_summary.py"):
             return filter(lambda x: not x[0].endswith("metric"), super().named_children())
@@ -114,7 +114,7 @@ class LearnedFilterModel(pl.LightningModule):
     
 
 
-    def training_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> torch.Tensor:
         #Reset metrics
         self.training_loss_metric.reset()
         self.training_psnr_metric.reset()
@@ -141,7 +141,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
 
-    def validation_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,typing.Union[torch.Tensor,None]]:
+    def validation_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> typing.Dict[str,typing.Union[torch.Tensor,None]]:
         #Reset metrics
         self.validation_loss_metric.reset()
         self.validation_psnr_metric.reset()
@@ -164,7 +164,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
 
-    def validation_epoch_end(self, outputs: list[dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]]) -> None:
+    def validation_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -175,25 +175,26 @@ class LearnedFilterModel(pl.LightningModule):
 
             #Log filter coefficients
             figure = plt.figure()
-            axes: mpl_toolkits.mplot3d.Axes3D = figure.add_subplot(1, 1, 1, projection="3d")
+            axes: mpl_toolkits.mplot3d.Axes3D = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
             plot_x, plot_y = torch.meshgrid(torch.arange(self.filter_params.shape[0]), torch.arange(self.filter_params.shape[1]), indexing="ij")
             axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist())))
+            axes.set_xticks(torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist())
+            axes.set_xticklabels(list(map(lambda x: f"{x/self.filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist())))
             axes.set_ylabel("Frequency")
             axes.set_yticks(torch.arange(0, self.filter_params.shape[1], self.filter_params.shape[1]//min(5, self.filter_params.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Filter value")
             axes.set_zlim(0.0, 2.0)
-            axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"), alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu").numpy(), alpha=1.0)
             logger.add_figure("validation/filter_coefficients", figure, self.global_step)
             log_3d(logger, "validation/filter_coefficients", self.filter_params, self.global_step, 1.0)
             log_img(logger, "validation/_filter_coefficients", self.filter_params.mT, 0, True)
 
             #Log examples
-            sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
-            noisy_sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["noisy_sinogram"][0,0]
+            sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
+            noisy_sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["noisy_sinogram"][0,0]
             filtered_sinogram = radon.radon_filter(sinogram.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, self.filter_params)[0,0]
-            ground_truth = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["ground_truth"][0,0]
-            reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["reconstruction"][0,0]
+            ground_truth = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["ground_truth"][0,0]
+            reconstruction = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["reconstruction"][0,0]
             log_img(logger, "validation/sinogram", sinogram.mT, self.global_step)
             log_img(logger, "validation/noisy_sinogram", noisy_sinogram.mT, self.global_step)
             log_img(logger, "validation/filtered_sinogram", filtered_sinogram.mT, self.global_step)
@@ -202,7 +203,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
 
-    def test_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]:
+    def test_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]:
         #Reset metrics
         self.test_loss_metric.reset()
         self.test_psnr_metric.reset()
@@ -227,7 +228,7 @@ class LearnedFilterModel(pl.LightningModule):
 
 
 
-    def test_epoch_end(self, outputs: list[dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]]) -> None:
+    def test_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
         torch.save(self.filter_params, "coefficients.pt")
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
@@ -243,24 +244,25 @@ class LearnedFilterModel(pl.LightningModule):
             figure = plt.figure()
             axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
             axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist())))
+            axes.set_xticks(torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist())
+            axes.set_xticklabels(list(map(lambda x: f"{x/self.filter_params.shape[0]:3.2f} \u03C0", torch.arange(0, self.filter_params.shape[0], self.filter_params.shape[0]//min(5, self.filter_params.shape[0])).to(torch.float32).tolist())))
             axes.set_ylabel("Frequency")
             axes.set_yticks(torch.arange(0, self.filter_params.shape[1], self.filter_params.shape[1]//min(5, self.filter_params.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Filter value")
             axes.set_zlim(0.0, 2.0)
             plot_x, plot_y = torch.meshgrid(torch.arange(self.filter_params.shape[0]), torch.arange(self.filter_params.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu"), alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, self.filter_params.detach().to("cpu").numpy(), alpha=1.0)
             logger.add_figure("test/filter_coefficients", figure, 0)
             log_3d(logger, "test/filter_coefficients", self.filter_params, 0, 1.0)
             log_img(logger, "test/_filter_coefficients", self.filter_params.mT, 0, True)
 
             #Log examples
             for i in range(10):
-                sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["sinogram"][0,0]
-                noisy_sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["noisy_sinogram"][0,0]
+                sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["sinogram"][0,0]
+                noisy_sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["noisy_sinogram"][0,0]
                 filtered_sinogram = radon.radon_filter(sinogram.unsqueeze(0).unsqueeze(0), lambda s,p: s*p, self.filter_params)[0,0]
-                ground_truth = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["ground_truth"][0,0]
-                reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["reconstruction"][0,0]
+                ground_truth = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["ground_truth"][0,0]
+                reconstruction = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["reconstruction"][0,0]
                 log_img(logger, "test/sinogram", sinogram.mT, i)
                 log_img(logger, "test/noisy_sinogram", noisy_sinogram.mT, i)
                 log_img(logger, "test/filtered_sinogram", filtered_sinogram.mT, i)

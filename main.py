@@ -34,7 +34,7 @@ from svd_model import SVDModel
 class CustomTensorBoardLogger(pytorch_lightning.loggers.TensorBoardLogger):
     #Disables logging of epoch
     @pytorch_lightning.utilities.rank_zero_only
-    def log_metrics(self, metrics: dict[str, typing.Union[torch.Tensor,float]], step: int) -> None:
+    def log_metrics(self, metrics: typing.Dict[str, typing.Union[torch.Tensor,float]], step: int) -> None:
         metrics.pop("epoch", None)
         return super().log_metrics(metrics, step)
     

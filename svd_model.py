@@ -88,7 +88,7 @@ class SVDModel(pl.LightningModule):
 
 
     #HACK Removes metrics from PyTorch Lightning overview
-    def named_children(self) -> typing.Iterator[tuple[str, nn.Module]]:
+    def named_children(self) -> typing.Iterator[typing.Tuple[str, nn.Module]]:
         stack = inspect.stack()
         if stack[2].function == "summarize" and stack[2].filename.endswith("pytorch_lightning/utilities/model_summary/model_summary.py"):
             return filter(lambda x: not x[0].endswith("metric"), super().named_children())
@@ -122,7 +122,7 @@ class SVDModel(pl.LightningModule):
     
 
 
-    def training_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> torch.Tensor:
         #Reset metrics
         self.training_learned_loss_metric.reset()
         self.training_learned_psnr_metric.reset()
@@ -165,7 +165,7 @@ class SVDModel(pl.LightningModule):
 
 
 
-    def validation_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,typing.Union[torch.Tensor,None]]:
+    def validation_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> typing.Dict[str,typing.Union[torch.Tensor,None]]:
         #Reset metrics
         self.validation_learned_loss_metric.reset()
         self.validation_learned_psnr_metric.reset()
@@ -201,7 +201,7 @@ class SVDModel(pl.LightningModule):
 
 
 
-    def validation_epoch_end(self, outputs: list[dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]]) -> None:
+    def validation_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -223,45 +223,27 @@ class SVDModel(pl.LightningModule):
 
             #Log pi
             figure = plt.figure()
-            axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
-            axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.pi.shape[0], self.pi.shape[0]//min(5, self.pi.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.pi.shape[0]:3.2f} \u03C0", torch.arange(0, self.pi.shape[0], self.pi.shape[0]//min(5, self.pi.shape[0])).to(torch.float32).tolist())))
-            axes.set_ylabel("Frequency")
-            axes.set_yticks(torch.arange(0, self.pi.shape[1], self.pi.shape[1]//min(5, self.pi.shape[1])).to(torch.float32).tolist())
-            axes.set_zlabel("Pi")
-            plot_x, plot_y = torch.meshgrid(torch.arange(self.pi.shape[0]), torch.arange(self.pi.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.pi.detach().to("cpu")/self.count, alpha=1.0)
+            axes = figure.add_subplot(1, 1, 1)
+            axes.set_xlabel("Index")
+            axes.set_ylabel("Coefficient")
+            axes.plot(torch.arange(self.pi.shape[0]), self.pi.detach().to("cpu"))
             logger.add_figure("validation/pi", figure, self.global_step)
-            log_3d(logger, "validation/pi", self.pi/self.count, self.global_step, 1.0)
-            log_img(logger, "validation/_pi", self.pi.mT/self.count, self.global_step, True)
 
             #Log delta
             figure = plt.figure()
-            axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
-            axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.delta.shape[0], self.delta.shape[0]//min(5, self.delta.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.delta.shape[0]:3.2f} \u03C0", torch.arange(0, self.delta.shape[0], self.delta.shape[0]//min(5, self.delta.shape[0])).to(torch.float32).tolist())))
-            axes.set_ylabel("Frequency")
-            axes.set_yticks(torch.arange(0, self.delta.shape[1], self.delta.shape[1]//min(5, self.delta.shape[1])).to(torch.float32).tolist())
-            axes.set_zlabel("Delta")
-            plot_x, plot_y = torch.meshgrid(torch.arange(self.delta.shape[0]), torch.arange(self.delta.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.delta.detach().to("cpu")/self.count, alpha=1.0)
+            axes = figure.add_subplot(1, 1, 1)
+            axes.set_xlabel("Index")
+            axes.set_ylabel("Coefficient")
+            axes.plot(torch.arange(self.delta.shape[0]), self.delta.detach().to("cpu"))
             logger.add_figure("validation/delta", figure, self.global_step)
-            log_3d(logger, "validation/delta", self.delta/self.count, self.global_step, 1.0)
-            log_img(logger, "validation/_delta", self.delta.mT/self.count, self.global_step, True)
 
             #Log gamma
             figure = plt.figure()
-            axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
-            axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.gamma.shape[0], self.gamma.shape[0]//min(5, self.gamma.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.gamma.shape[0]:3.2f} \u03C0", torch.arange(0, self.gamma.shape[0], self.gamma.shape[0]//min(5, self.gamma.shape[0])).to(torch.float32).tolist())))
-            axes.set_ylabel("Frequency")
-            axes.set_yticks(torch.arange(0, self.gamma.shape[1], self.gamma.shape[1]//min(5, self.gamma.shape[1])).to(torch.float32).tolist())
-            axes.set_zlabel("Gamma")
-            plot_x, plot_y = torch.meshgrid(torch.arange(self.gamma.shape[0]), torch.arange(self.gamma.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.gamma.detach().to("cpu")/self.count, alpha=1.0)
+            axes = figure.add_subplot(1, 1, 1)
+            axes.set_xlabel("Index")
+            axes.set_ylabel("Coefficient")
+            axes.plot(torch.arange(self.gamma.shape[0]), self.gamma.detach().to("cpu"))
             logger.add_figure("validation/gamma", figure, self.global_step)
-            log_3d(logger, "validation/gamma", self.gamma/self.count, self.global_step, 1.0)
-            log_img(logger, "validation/_gamma", self.gamma.mT/self.count, self.global_step, True)
 
             #Log analytic coefficients
             filter_params = (self.singular_values*self.pi-self.gamma)/(self.singular_values**2*self.pi+self.delta+2*self.singular_values*self.gamma)
@@ -273,11 +255,11 @@ class SVDModel(pl.LightningModule):
             logger.add_figure("validation/analytic_coefficients", figure, self.global_step)
 
             #Log examples
-            sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
-            noisy_sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["noisy_sinogram"][0,0]
-            ground_truth = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["ground_truth"][0,0]
-            learned_reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["learned_reconstruction"][0,0]
-            analytic_reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[0]["analytic_reconstruction"][0,0]
+            sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
+            noisy_sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["noisy_sinogram"][0,0]
+            ground_truth = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["ground_truth"][0,0]
+            learned_reconstruction = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["learned_reconstruction"][0,0]
+            analytic_reconstruction = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["analytic_reconstruction"][0,0]
             log_img(logger, "validation/sinogram", sinogram.mT, self.global_step)
             log_img(logger, "validation/noisy_sinogram", noisy_sinogram.mT, self.global_step)
             log_img(logger, "validation/ground_truth", ground_truth, self.global_step)
@@ -286,7 +268,7 @@ class SVDModel(pl.LightningModule):
 
 
 
-    def test_step(self, batch: tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]:
+    def test_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]:
         #Reset metrics
         self.test_learned_loss_metric.reset()
         self.test_learned_psnr_metric.reset()
@@ -326,7 +308,7 @@ class SVDModel(pl.LightningModule):
 
 
 
-    def test_epoch_end(self, outputs: list[dict[str,typing.Union[torch.Tensor,list[torch.Tensor]]]]) -> None:
+    def test_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.filter_params).reshape(self.filter_params.shape), "coefficients.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/self.count, "pi.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/self.count, "delta.pt")
@@ -356,45 +338,27 @@ class SVDModel(pl.LightningModule):
 
             #Log pi
             figure = plt.figure()
-            axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
-            axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.pi.shape[0], self.pi.shape[0]//min(5, self.pi.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.pi.shape[0]:3.2f} \u03C0", torch.arange(0, self.pi.shape[0], self.pi.shape[0]//min(5, self.pi.shape[0])).to(torch.float32).tolist())))
-            axes.set_ylabel("Frequency")
-            axes.set_yticks(torch.arange(0, self.pi.shape[1], self.pi.shape[1]//min(5, self.pi.shape[1])).to(torch.float32).tolist())
-            axes.set_zlabel("Pi")
-            plot_x, plot_y = torch.meshgrid(torch.arange(self.pi.shape[0]), torch.arange(self.pi.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.pi.detach().to("cpu")/self.count, alpha=1.0)
-            logger.add_figure("test/pi", figure, 0)
-            log_3d(logger, "test/pi", self.pi/self.count, 0, 1.0)
-            log_img(logger, "test/_pi", self.pi.mT/self.count, 0, True)
+            axes = figure.add_subplot(1, 1, 1)
+            axes.set_xlabel("Index")
+            axes.set_ylabel("Coefficient")
+            axes.plot(torch.arange(self.pi.shape[0]), self.pi.detach().to("cpu"))
+            logger.add_figure("validation/pi", figure, 0)
 
             #Log delta
             figure = plt.figure()
-            axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
-            axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.delta.shape[0], self.delta.shape[0]//min(5, self.delta.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.delta.shape[0]:3.2f} \u03C0", torch.arange(0, self.delta.shape[0], self.delta.shape[0]//min(5, self.delta.shape[0])).to(torch.float32).tolist())))
-            axes.set_ylabel("Frequency")
-            axes.set_yticks(torch.arange(0, self.delta.shape[1], self.delta.shape[1]//min(5, self.delta.shape[1])).to(torch.float32).tolist())
-            axes.set_zlabel("Delta")
-            plot_x, plot_y = torch.meshgrid(torch.arange(self.delta.shape[0]), torch.arange(self.delta.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.delta.detach().to("cpu")/self.count, alpha=1.0)
+            axes = figure.add_subplot(1, 1, 1)
+            axes.set_xlabel("Index")
+            axes.set_ylabel("Coefficient")
+            axes.plot(torch.arange(self.delta.shape[0]), self.delta.detach().to("cpu"))
             logger.add_figure("test/delta", figure, 0)
-            log_3d(logger, "test/delta", self.delta/self.count, 0, 1.0)
-            log_img(logger, "test/_delta", self.delta.mT/self.count, 0, True)
 
             #Log gamma
             figure = plt.figure()
-            axes = typing.cast(mpl_toolkits.mplot3d.Axes3D, figure.add_subplot(1, 1, 1, projection="3d"))
-            axes.set_xlabel("Angle")
-            axes.set_xticks(torch.arange(0, self.gamma.shape[0], self.gamma.shape[0]//min(5, self.gamma.shape[0])).to(torch.float32).tolist(), list(map(lambda x: f"{x/self.gamma.shape[0]:3.2f} \u03C0", torch.arange(0, self.gamma.shape[0], self.gamma.shape[0]//min(5, self.gamma.shape[0])).to(torch.float32).tolist())))
-            axes.set_ylabel("Frequency")
-            axes.set_yticks(torch.arange(0, self.gamma.shape[1], self.gamma.shape[1]//min(5, self.gamma.shape[1])).to(torch.float32).tolist())
-            axes.set_zlabel("Gamma")
-            plot_x, plot_y = torch.meshgrid(torch.arange(self.gamma.shape[0]), torch.arange(self.gamma.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.gamma.detach().to("cpu")/self.count, alpha=1.0)
+            axes = figure.add_subplot(1, 1, 1)
+            axes.set_xlabel("Index")
+            axes.set_ylabel("Coefficient")
+            axes.plot(torch.arange(self.gamma.shape[0]), self.gamma.detach().to("cpu"))
             logger.add_figure("test/gamma", figure, 0)
-            log_3d(logger, "test/gamma", self.gamma/self.count, 0, 1.0)
-            log_img(logger, "test/_gamma", self.gamma.mT/self.count, 0, True)
 
             #Log analytic coefficients
             filter_params = (self.singular_values*self.pi-self.gamma)/(self.singular_values**2*self.pi+self.delta+2*self.singular_values*self.gamma)
@@ -407,11 +371,11 @@ class SVDModel(pl.LightningModule):
 
             #Log examples
             for i in range(10):
-                sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["sinogram"][0,0]
-                noisy_sinogram = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["noisy_sinogram"][0,0]
-                ground_truth = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["ground_truth"][0,0]
-                learned_reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["learned_reconstruction"][0,0]
-                analytic_reconstruction = typing.cast(list[dict[str,torch.Tensor]], outputs)[i]["analytic_reconstruction"][0,0]
+                sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["sinogram"][0,0]
+                noisy_sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["noisy_sinogram"][0,0]
+                ground_truth = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["ground_truth"][0,0]
+                learned_reconstruction = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["learned_reconstruction"][0,0]
+                analytic_reconstruction = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[i]["analytic_reconstruction"][0,0]
                 log_img(logger, "test/sinogram", sinogram.mT, i)
                 log_img(logger, "test/noisy_sinogram", noisy_sinogram.mT, i)
                 log_img(logger, "test/ground_truth", ground_truth, i)

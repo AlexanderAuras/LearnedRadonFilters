@@ -18,11 +18,10 @@ import torchmetrics
 import matplotlib
 matplotlib.use("agg")
 import matplotlib.pyplot as plt
-import mpl_toolkits.mplot3d
 
 import radon as radon
 
-from utils import log_3d, log_img
+from utils import log_img
 
 
 
@@ -38,6 +37,7 @@ class SVDModel(pl.LightningModule):
         matrix = radon.radon_matrix(torch.zeros(self.config.dataset.img_size, self.config.dataset.img_size), thetas=self.angles, positions=self.positions)
         v, d, ut = torch.linalg.svd(matrix, full_matrices=False)
         self.vt  = torch.nn.parameter.Parameter(v.mT, requires_grad=False)
+        torch.save(d, "singular_values.pt")
         self.u = torch.nn.parameter.Parameter(ut.mT, requires_grad=False)
         if self.config.model.initialization == "zeros":
             self.filter_params = torch.nn.parameter.Parameter(torch.zeros((d.shape[0],)))

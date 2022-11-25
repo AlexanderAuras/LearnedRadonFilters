@@ -36,22 +36,32 @@ class SVDModel(pl.LightningModule):
         
         matrix = radon.radon_matrix(torch.zeros(self.config.dataset.img_size, self.config.dataset.img_size), thetas=self.angles, positions=self.positions)
         v, d, ut = torch.linalg.svd(matrix, full_matrices=False)
+        idx = 0
+        for i in range(d.shape[0]):
+            if d[i] < 0.2:
+                idx = i
+                break
         self.vt  = torch.nn.parameter.Parameter(v.mT, requires_grad=False)
         torch.save(d, "singular_values.pt")
         self.u = torch.nn.parameter.Parameter(ut.mT, requires_grad=False)
         if self.config.model.initialization == "zeros":
-            self.filter_params = torch.nn.parameter.Parameter(torch.zeros((d.shape[0],)))
+            self.filter_params1 = torch.nn.parameter.Parameter(torch.zeros((idx,)))
+            self.filter_params2 = torch.nn.parameter.Parameter(torch.zeros((d.shape[0]-idx,)))
         elif self.config.model.initialization == "ones":
-            self.filter_params = torch.nn.parameter.Parameter(torch.ones((d.shape[0],)))
+            self.filter_params1 = torch.nn.parameter.Parameter(torch.ones((idx,)))
+            self.filter_params2 = torch.nn.parameter.Parameter(torch.ones((d.shape[0]-idx,)))
         elif self.config.model.initialization == "randn":
-            self.filter_params = torch.nn.parameter.Parameter(torch.randn((d.shape[0],)).abs())
+            self.filter_params1 = torch.nn.parameter.Parameter(torch.randn((idx,)).abs())
+            self.filter_params2 = torch.nn.parameter.Parameter(torch.randn((d.shape[0]-idx,)).abs())
         elif self.config.model.initialization == "rand":
-            self.filter_params = torch.nn.parameter.Parameter(torch.rand((d.shape[0],)))
+            self.filter_params1 = torch.nn.parameter.Parameter(torch.rand((idx,)))
+            self.filter_params2 = torch.nn.parameter.Parameter(torch.rand((d.shape[0]-idx,)))
         elif self.config.model.initialization == "path":
             init_data = torch.load(self.config.model.initialization_path)
             if isinstance(init_data, torch.nn.parameter.Parameter):
                 init_data = torch.nn.utils.convert_parameters.parameters_to_vector(init_data).reshape(init_data.shape)
-            self.filter_params = torch.nn.parameter.Parameter(init_data)
+            self.filter_params1 = torch.nn.parameter.Parameter(init_data)
+            self.filter_params2 = torch.nn.parameter.Parameter(init_data)
         else:
             raise NotImplementedError()
         self.singular_values = torch.nn.parameter.Parameter(d, requires_grad=False)
@@ -98,7 +108,8 @@ class SVDModel(pl.LightningModule):
 
     #Common forward method used by forward, training_step, validation_step and test_step
     def forward_learned(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.reshape(self.u@torch.diag(self.filter_params)@self.vt@x.reshape(x.shape[0],-1,1), (x.shape[0],1,self.config.dataset.img_size,self.config.dataset.img_size))
+        all_filter_params = torch.concat((self.filter_params1, self.filter_params2))
+        return torch.reshape(self.u@torch.diag(all_filter_params)@self.vt@x.reshape(x.shape[0],-1,1), (x.shape[0],1,self.config.dataset.img_size,self.config.dataset.img_size))
     
     
     
@@ -115,7 +126,10 @@ class SVDModel(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.config.optimizer_lr)
+        optimizer = torch.optim.Adam([
+            {"params": self.filter_params1},
+            {"params": self.filter_params2, "lr": self.config.optimizer_lr*10.0}
+        ], lr=self.config.optimizer_lr)
         #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, 2.0)
         #return [optimizer], [{"scheduler": scheduler, "interval": "epoch"}]
         return optimizer
@@ -218,7 +232,8 @@ class SVDModel(pl.LightningModule):
             axes = figure.add_subplot(1, 1, 1)
             axes.set_xlabel("Index")
             axes.set_ylabel("Coefficient")
-            axes.plot(torch.arange(self.filter_params.shape[0]), self.filter_params.detach().to("cpu"))
+            all_filter_params = torch.concat((self.filter_params1, self.filter_params2))
+            axes.plot(torch.arange(all_filter_params.shape[0]), all_filter_params.detach().to("cpu"))
             logger.add_figure("validation/learned_coefficients", figure, self.global_step)
 
             #Log pi
@@ -309,7 +324,8 @@ class SVDModel(pl.LightningModule):
 
 
     def test_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
-        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.filter_params).reshape(self.filter_params.shape), "coefficients.pt")
+        all_filter_params = torch.concat((self.filter_params1, self.filter_params2))
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(all_filter_params).reshape(all_filter_params.shape), "coefficients.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/self.count, "pi.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/self.count, "delta.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.gamma).reshape(self.gamma.shape)/self.count, "gamma.pt")
@@ -333,7 +349,7 @@ class SVDModel(pl.LightningModule):
             axes = figure.add_subplot(1, 1, 1)
             axes.set_xlabel("Index")
             axes.set_ylabel("Coefficient")
-            axes.plot(torch.arange(self.filter_params.shape[0]), self.filter_params.detach().to("cpu"))
+            axes.plot(torch.arange(all_filter_params.shape[0]), all_filter_params.detach().to("cpu"))
             logger.add_figure("test/learned_coefficients", figure, 0)
 
             #Log pi

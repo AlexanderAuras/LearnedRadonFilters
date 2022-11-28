@@ -36,32 +36,22 @@ class SVDModel(pl.LightningModule):
         
         matrix = radon.radon_matrix(torch.zeros(self.config.dataset.img_size, self.config.dataset.img_size), thetas=self.angles, positions=self.positions)
         v, d, ut = torch.linalg.svd(matrix, full_matrices=False)
-        idx = 0
-        for i in range(d.shape[0]):
-            if d[i] < 0.2:
-                idx = i
-                break
-        self.vt  = torch.nn.parameter.Parameter(v.mT, requires_grad=False)
+        self.vt = torch.nn.parameter.Parameter(v.mT, requires_grad=False)
         torch.save(d, "singular_values.pt")
         self.u = torch.nn.parameter.Parameter(ut.mT, requires_grad=False)
         if self.config.model.initialization == "zeros":
-            self.filter_params1 = torch.nn.parameter.Parameter(torch.zeros((idx,)))
-            self.filter_params2 = torch.nn.parameter.Parameter(torch.zeros((d.shape[0]-idx,)))
+            self.split_filter_params = [torch.nn.parameter.Parameter(torch.zeros((1,))) for _ in range(d.shape[0])]
         elif self.config.model.initialization == "ones":
-            self.filter_params1 = torch.nn.parameter.Parameter(torch.ones((idx,)))
-            self.filter_params2 = torch.nn.parameter.Parameter(torch.ones((d.shape[0]-idx,)))
+            self.split_filter_params = [torch.nn.parameter.Parameter(torch.ones((1,))) for _ in range(d.shape[0])]
         elif self.config.model.initialization == "randn":
-            self.filter_params1 = torch.nn.parameter.Parameter(torch.randn((idx,)).abs())
-            self.filter_params2 = torch.nn.parameter.Parameter(torch.randn((d.shape[0]-idx,)).abs())
+            self.split_filter_params = [torch.nn.parameter.Parameter(torch.randn((1,)).abs()) for _ in range(d.shape[0])]
         elif self.config.model.initialization == "rand":
-            self.filter_params1 = torch.nn.parameter.Parameter(torch.rand((idx,)))
-            self.filter_params2 = torch.nn.parameter.Parameter(torch.rand((d.shape[0]-idx,)))
+            self.split_filter_params = [torch.nn.parameter.Parameter(torch.rand((1,))) for _ in range(d.shape[0])]
         elif self.config.model.initialization == "path":
             init_data = torch.load(self.config.model.initialization_path)
             if isinstance(init_data, torch.nn.parameter.Parameter):
                 init_data = torch.nn.utils.convert_parameters.parameters_to_vector(init_data).reshape(init_data.shape)
-            self.filter_params1 = torch.nn.parameter.Parameter(init_data)
-            self.filter_params2 = torch.nn.parameter.Parameter(init_data)
+            self.split_filter_params = [torch.nn.parameter.Parameter(torch.tensor((init_data[i].item(),))) for i in range(d.shape[0])]
         else:
             raise NotImplementedError()
         self.singular_values = torch.nn.parameter.Parameter(d, requires_grad=False)
@@ -108,7 +98,7 @@ class SVDModel(pl.LightningModule):
 
     #Common forward method used by forward, training_step, validation_step and test_step
     def forward_learned(self, x: torch.Tensor) -> torch.Tensor:
-        all_filter_params = torch.concat((self.filter_params1, self.filter_params2))
+        all_filter_params = torch.concat(typing.cast(typing.List[torch.Tensor], self.split_filter_params))
         return torch.reshape(self.u@torch.diag(all_filter_params)@self.vt@x.reshape(x.shape[0],-1,1), (x.shape[0],1,self.config.dataset.img_size,self.config.dataset.img_size))
     
     
@@ -126,17 +116,14 @@ class SVDModel(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam([
-            {"params": self.filter_params1},
-            {"params": self.filter_params2, "lr": self.config.optimizer_lr*10.0}
-        ], lr=self.config.optimizer_lr)
+        optimizer = torch.optim.Adam([{"params": params, "lr": lr} for params, lr in zip(self.split_filter_params, torch.full((len(self.split_filter_params),), self.config.optimizer_lr).tolist())], lr=self.config.optimizer_lr)
         #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, 2.0)
         #return [optimizer], [{"scheduler": scheduler, "interval": "epoch"}]
         return optimizer
     
 
 
-    def training_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: typing.Tuple[torch.Tensor,torch.Tensor], batch_idx: int) -> None:#torch.Tensor:
         #Reset metrics
         self.training_learned_loss_metric.reset()
         self.training_learned_psnr_metric.reset()
@@ -175,7 +162,16 @@ class SVDModel(pl.LightningModule):
             logger.add_scalar("training/analytic_psnr", self.training_analytic_psnr_metric.compute().item(), self.global_step)
             logger.add_scalar("training/analytic_ssim", self.training_analytic_ssim_metric.compute().item(), self.global_step)
 
-        return learned_loss
+        optimizers = self.optimizers()
+        if isinstance(optimizers, list):
+            [typing.cast(torch.optim.Optimizer, optimizer).zero_grad() for optimizer in optimizers]
+        else:
+            typing.cast(torch.optim.Optimizer, optimizers).zero_grad()
+        self.manual_backward(learned_loss)
+        if isinstance(optimizers, list):
+            [optimizer.step() for optimizer in optimizers]
+        else:
+            optimizers.step()
 
 
 
@@ -232,7 +228,7 @@ class SVDModel(pl.LightningModule):
             axes = figure.add_subplot(1, 1, 1)
             axes.set_xlabel("Index")
             axes.set_ylabel("Coefficient")
-            all_filter_params = torch.concat((self.filter_params1, self.filter_params2))
+            all_filter_params = torch.concat(typing.cast(typing.List[torch.Tensor], self.split_filter_params))
             axes.plot(torch.arange(all_filter_params.shape[0]), all_filter_params.detach().to("cpu"))
             logger.add_figure("validation/learned_coefficients", figure, self.global_step)
 
@@ -324,7 +320,7 @@ class SVDModel(pl.LightningModule):
 
 
     def test_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
-        all_filter_params = torch.concat((self.filter_params1, self.filter_params2))
+        all_filter_params = torch.concat(typing.cast(typing.List[torch.Tensor], self.split_filter_params))
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(all_filter_params).reshape(all_filter_params.shape), "coefficients.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/self.count, "pi.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/self.count, "delta.pt")

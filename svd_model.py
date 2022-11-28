@@ -30,6 +30,7 @@ class SVDModel(pl.LightningModule):
         super().__init__()
         self.config = config
         self.example_input_array = torch.randn((1,1,len(self.config.sino_angles) if self.config.sino_angles != None else 256,len(self.config.sino_positions) if self.config.sino_positions != None else ceil((self.config.dataset.img_size*1.41421356237)/2.0)*2+1)) #Needed for pytorch lightning
+        self.automatic_optimization = False
 
         self.angles = torch.nn.parameter.Parameter(torch.tensor(self.config.sino_angles), requires_grad=False) if self.config.sino_angles != None else None
         self.positions = torch.nn.parameter.Parameter(torch.tensor(self.config.sino_positions), requires_grad=False) if self.config.sino_positions != None else None
@@ -39,19 +40,30 @@ class SVDModel(pl.LightningModule):
         self.vt = torch.nn.parameter.Parameter(v.mT, requires_grad=False)
         torch.save(d, "singular_values.pt")
         self.u = torch.nn.parameter.Parameter(ut.mT, requires_grad=False)
+        self.split_filter_params = []
         if self.config.model.initialization == "zeros":
-            self.split_filter_params = [torch.nn.parameter.Parameter(torch.zeros((1,))) for _ in range(d.shape[0])]
+            for i in range(d.shape[0]):
+                setattr(self, f"split_filter_params{i}", torch.nn.parameter.Parameter(torch.zeros((1,))))
+                self.split_filter_params.append(getattr(self, f"split_filter_params{i}"))
         elif self.config.model.initialization == "ones":
-            self.split_filter_params = [torch.nn.parameter.Parameter(torch.ones((1,))) for _ in range(d.shape[0])]
+            for i in range(d.shape[0]):
+                setattr(self, f"split_filter_params{i}", torch.nn.parameter.Parameter(torch.ones((1,))))
+                self.split_filter_params.append(getattr(self, f"split_filter_params{i}"))
         elif self.config.model.initialization == "randn":
-            self.split_filter_params = [torch.nn.parameter.Parameter(torch.randn((1,)).abs()) for _ in range(d.shape[0])]
+            for i in range(d.shape[0]):
+                setattr(self, f"split_filter_params{i}", torch.nn.parameter.Parameter(torch.randn((1,)).abs()))
+                self.split_filter_params.append(getattr(self, f"split_filter_params{i}"))
         elif self.config.model.initialization == "rand":
-            self.split_filter_params = [torch.nn.parameter.Parameter(torch.rand((1,))) for _ in range(d.shape[0])]
+            for i in range(d.shape[0]):
+                setattr(self, f"split_filter_params{i}", torch.nn.parameter.Parameter(torch.rand((1,))))
+                self.split_filter_params.append(getattr(self, f"split_filter_params{i}"))
         elif self.config.model.initialization == "path":
             init_data = torch.load(self.config.model.initialization_path)
             if isinstance(init_data, torch.nn.parameter.Parameter):
                 init_data = torch.nn.utils.convert_parameters.parameters_to_vector(init_data).reshape(init_data.shape)
-            self.split_filter_params = [torch.nn.parameter.Parameter(torch.tensor((init_data[i].item(),))) for i in range(d.shape[0])]
+                for i in range(d.shape[0]):
+                    setattr(self, f"split_filter_params{i}", torch.nn.parameter.Parameter(torch.full((1,), init_data[i].item())))
+                    self.split_filter_params.append(getattr(self, f"split_filter_params{i}"))
         else:
             raise NotImplementedError()
         self.singular_values = torch.nn.parameter.Parameter(d, requires_grad=False)
@@ -116,6 +128,15 @@ class SVDModel(pl.LightningModule):
 
 
     def configure_optimizers(self):
+        ##############################################################
+        #CHANGE LEARNING RATES HERE
+        #Example (indexing might be wrong):
+        #
+        #learning_rates = torch.linspace(0.0, 1.0, len(self.split_filter_params))+1.0e-2 #Linear
+        #learning_rates = 1.0/(float(len(self.split_filter_params))-torch.linspace(0.0, 1.0, len(self.split_filter_params))) #Should be similar to 1/σ
+        #optimizer = torch.optim.Adam([{"params": params, "lr": lr} for params, lr in zip(self.split_filter_params, learning_rates.tolist())], lr=self.config.optimizer_lr)
+        #
+        ##############################################################
         optimizer = torch.optim.Adam([{"params": params, "lr": lr} for params, lr in zip(self.split_filter_params, torch.full((len(self.split_filter_params),), self.config.optimizer_lr).tolist())], lr=self.config.optimizer_lr)
         #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, 2.0)
         #return [optimizer], [{"scheduler": scheduler, "interval": "epoch"}]
@@ -168,6 +189,14 @@ class SVDModel(pl.LightningModule):
         else:
             typing.cast(torch.optim.Optimizer, optimizers).zero_grad()
         self.manual_backward(learned_loss)
+        ##############################################################
+        #CHANGE GRADIENT HERE
+        #Example (indexing might be wrong):
+        #
+        #for i in range(len(self.split_filter_params)):
+        #   self.split_filter_params[i].grad *= 1.0/i
+        #
+        ##############################################################
         if isinstance(optimizers, list):
             [optimizer.step() for optimizer in optimizers]
         else:

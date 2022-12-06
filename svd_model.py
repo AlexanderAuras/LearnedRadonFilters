@@ -351,9 +351,9 @@ class SVDModel(pl.LightningModule):
     def test_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
         all_filter_params = torch.concat(typing.cast(typing.List[torch.Tensor], self.split_filter_params))
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(all_filter_params).reshape(all_filter_params.shape), "coefficients.pt")
-        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/self.count, "pi.pt")
-        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/self.count, "delta.pt")
-        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.gamma).reshape(self.gamma.shape)/self.count, "gamma.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/max(self.count, 1), "pi.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/max(self.count, 1), "delta.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.gamma).reshape(self.gamma.shape)/max(self.count, 1), "gamma.pt")
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 

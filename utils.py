@@ -12,7 +12,7 @@ def log_img(logger: typing.Any, tag: str, img: torch.Tensor, step: int, log_colo
     if img.max() == img.min():
         img[0,0] += 0.0001
     if log_color:
-        plt.imshow(img.detach().to("cpu"), cmap="gray", norm=matplotlib.colors.LogNorm())
+        plt.imshow(img.detach().to("cpu"), cmap="gray", norm=matplotlib.colors.SymLogNorm(0.1))
     else:
         plt.imshow(img.detach().to("cpu"), cmap="gray")
     plt.colorbar()

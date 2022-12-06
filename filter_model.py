@@ -302,10 +302,10 @@ class FilterModel(pl.LightningModule):
             axes.set_yticks(torch.arange(0, self.pi.shape[1], self.pi.shape[1]//min(5, self.pi.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Pi")
             plot_x, plot_y = torch.meshgrid(torch.arange(self.pi.shape[0]), torch.arange(self.pi.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.pi.detach().to("cpu").numpy()/self.count, alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, self.pi.detach().to("cpu").numpy()/max(self.count, 1), alpha=1.0)
             logger.add_figure("validation/pi", figure, self.global_step)
-            log_3d(logger, "validation/pi", self.pi/self.count, self.global_step, 1.0)
-            log_img(logger, "validation/_pi", self.pi.mT/self.count, self.global_step, True)
+            log_3d(logger, "validation/pi", self.pi/max(self.count, 1), self.global_step, 1.0)
+            log_img(logger, "validation/_pi", self.pi.mT/max(self.count, 1), self.global_step, True)
 
             #Log delta
             figure = plt.figure()
@@ -317,10 +317,10 @@ class FilterModel(pl.LightningModule):
             axes.set_yticks(torch.arange(0, self.delta.shape[1], self.delta.shape[1]//min(5, self.delta.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Delta")
             plot_x, plot_y = torch.meshgrid(torch.arange(self.delta.shape[0]), torch.arange(self.delta.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.delta.detach().to("cpu").numpy()/self.count, alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, self.delta.detach().to("cpu").numpy()/max(self.count, 1), alpha=1.0)
             logger.add_figure("validation/delta", figure, self.global_step)
-            log_3d(logger, "validation/delta", self.delta/self.count, self.global_step, 1.0)
-            log_img(logger, "validation/_delta", self.delta.mT/self.count, self.global_step, True)
+            log_3d(logger, "validation/delta", self.delta/max(self.count, 1), self.global_step, 1.0)
+            log_img(logger, "validation/_delta", self.delta.mT/max(self.count, 1), self.global_step, True)
 
             #Log gamma
             figure = plt.figure()
@@ -332,10 +332,10 @@ class FilterModel(pl.LightningModule):
             axes.set_yticks(torch.arange(0, self.gamma.shape[1], self.gamma.shape[1]//min(5, self.gamma.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Gamma")
             plot_x, plot_y = torch.meshgrid(torch.arange(self.gamma.shape[0]), torch.arange(self.gamma.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.gamma.detach().to("cpu").numpy()/self.count, alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, self.gamma.detach().to("cpu").numpy()/max(self.count, 1), alpha=1.0)
             logger.add_figure("validation/gamma", figure, self.global_step)
-            log_3d(logger, "validation/gamma", self.gamma/self.count, self.global_step, 1.0)
-            log_img(logger, "validation/_gamma", self.gamma.mT/self.count, self.global_step, True)
+            log_3d(logger, "validation/gamma", self.gamma/max(self.count, 1), self.global_step, 1.0)
+            log_img(logger, "validation/_gamma", self.gamma.mT/max(self.count, 1), self.global_step, True)
 
             #Log examples
             sinogram = typing.cast(typing.List[typing.Dict[str,torch.Tensor]], outputs)[0]["sinogram"][0,0]
@@ -397,9 +397,9 @@ class FilterModel(pl.LightningModule):
 
     def test_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.filter_params).reshape(self.filter_params.shape), "coefficients.pt")
-        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/self.count, "pi.pt")
-        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/self.count, "delta.pt")
-        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.gamma).reshape(self.gamma.shape)/self.count, "gamma.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/max(self.count, 1), "pi.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/max(self.count, 1), "delta.pt")
+        torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.gamma).reshape(self.gamma.shape)/max(self.count, 1), "gamma.pt")
         if self.logger and self.trainer.is_global_zero:
             logger = typing.cast(pytorch_lightning.loggers.TensorBoardLogger, self.logger).experiment
 
@@ -441,10 +441,10 @@ class FilterModel(pl.LightningModule):
             axes.set_yticks(torch.arange(0, self.pi.shape[1], self.pi.shape[1]//min(5, self.pi.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Pi")
             plot_x, plot_y = torch.meshgrid(torch.arange(self.pi.shape[0]), torch.arange(self.pi.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.pi.detach().to("cpu").numpy()/self.count, alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, self.pi.detach().to("cpu").numpy()/max(self.count, 1), alpha=1.0)
             logger.add_figure("test/pi", figure, 0)
-            log_3d(logger, "test/pi", self.pi/self.count, 0, 1.0)
-            log_img(logger, "test/_pi", self.pi.mT/self.count, 0, True)
+            log_3d(logger, "test/pi", self.pi/max(self.count, 1), 0, 1.0)
+            log_img(logger, "test/_pi", self.pi.mT/max(self.count, 1), 0, True)
 
             #Log delta
             figure = plt.figure()
@@ -456,10 +456,10 @@ class FilterModel(pl.LightningModule):
             axes.set_yticks(torch.arange(0, self.delta.shape[1], self.delta.shape[1]//min(5, self.delta.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Delta")
             plot_x, plot_y = torch.meshgrid(torch.arange(self.delta.shape[0]), torch.arange(self.delta.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.delta.detach().to("cpu").numpy()/self.count, alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, self.delta.detach().to("cpu").numpy()/max(self.count, 1), alpha=1.0)
             logger.add_figure("test/delta", figure, 0)
-            log_3d(logger, "test/delta", self.delta/self.count, 0, 1.0)
-            log_img(logger, "test/_delta", self.delta.mT/self.count, 0, True)
+            log_3d(logger, "test/delta", self.delta/max(self.count, 1), 0, 1.0)
+            log_img(logger, "test/_delta", self.delta.mT/max(self.count, 1), 0, True)
 
             #Log gamma
             figure = plt.figure()
@@ -471,10 +471,10 @@ class FilterModel(pl.LightningModule):
             axes.set_yticks(torch.arange(0, self.gamma.shape[1], self.gamma.shape[1]//min(5, self.gamma.shape[1])).to(torch.float32).tolist())
             axes.set_zlabel("Gamma")
             plot_x, plot_y = torch.meshgrid(torch.arange(self.gamma.shape[0]), torch.arange(self.gamma.shape[1]), indexing="ij")
-            axes.plot_surface(plot_x, plot_y, self.gamma.detach().to("cpu").numpy()/self.count, alpha=1.0)
+            axes.plot_surface(plot_x, plot_y, self.gamma.detach().to("cpu").numpy()/max(self.count, 1), alpha=1.0)
             logger.add_figure("test/gamma", figure, 0)
-            log_3d(logger, "test/gamma", self.gamma/self.count, 0, 1.0)
-            log_img(logger, "test/_gamma", self.gamma.mT/self.count, 0, True)
+            log_3d(logger, "test/gamma", self.gamma/max(self.count, 1), 0, 1.0)
+            log_img(logger, "test/_gamma", self.gamma.mT/max(self.count, 1), 0, True)
 
             #Log analytic filter coefficients
             filter_params = self.ramp*(self.pi-self.gamma)/(self.pi+self.delta+2*self.gamma)

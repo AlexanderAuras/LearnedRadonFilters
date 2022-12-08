@@ -1,6 +1,6 @@
 name: "ellipses"
 img_size: 256
-ellipse_count: 10
-ellipse_size: 50
-ellipse_size_min: 10
+ellipse_count: 6
+ellipse_size: 75
+ellipse_size_min: 50
 blurred: false

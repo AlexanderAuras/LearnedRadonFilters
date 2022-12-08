@@ -1,0 +1,3 @@
+out_dir: /home/kabri/Documents/LearnedRadonFilters/runs
+device: "cuda"
+num_workers: -1

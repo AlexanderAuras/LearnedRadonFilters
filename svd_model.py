@@ -23,6 +23,7 @@ import radon as radon
 
 from utils import log_img
 
+import numpy as np
 
 
 class SVDModel(pl.LightningModule):
@@ -55,6 +56,8 @@ class SVDModel(pl.LightningModule):
         else:
             raise NotImplementedError()
         self.singular_values = torch.nn.parameter.Parameter(d, requires_grad=False)
+        self.pi_list = []
+        self.delta_list = []
         self.pi = torch.nn.parameter.Parameter(torch.zeros_like(self.singular_values), requires_grad=False)
         self.delta = torch.nn.parameter.Parameter(torch.zeros_like(self.singular_values), requires_grad=False)
         self.gamma = torch.nn.parameter.Parameter(torch.zeros_like(self.singular_values), requires_grad=False)
@@ -141,6 +144,8 @@ class SVDModel(pl.LightningModule):
         self.training_learned_loss_metric.update(learned_loss.item())
         self.training_learned_psnr_metric.update(torchmetrics.functional.peak_signal_noise_ratio(learned_reconstruction, ground_truth))
         self.training_learned_ssim_metric.update(typing.cast(torch.Tensor, torchmetrics.functional.structural_similarity_index_measure(learned_reconstruction, ground_truth)))
+        self.pi_list.append((self.u.mT@ground_truth.reshape(ground_truth.shape[0],-1).mT).cpu().numpy())
+        self.delta_list.append((self.vt@noise.reshape(noise.shape[0],-1).mT).cpu().numpy())
         self.pi += torch.sum((self.u.mT@ground_truth.reshape(ground_truth.shape[0],-1).mT)**2, dim=1)
         self.delta += torch.sum((self.vt@noise.reshape(noise.shape[0],-1).mT)**2, dim=1)
         self.gamma += torch.sum((self.u.mT@ground_truth.reshape(ground_truth.shape[0],-1).mT)*(self.vt@noise.reshape(noise.shape[0],-1).mT), dim = 1)
@@ -309,6 +314,8 @@ class SVDModel(pl.LightningModule):
 
 
     def test_epoch_end(self, outputs: typing.List[typing.Dict[str,typing.Union[torch.Tensor,typing.List[torch.Tensor]]]]) -> None:
+        np.save("pi_list.npy",np.array(self.pi_list))
+        np.save("delta_list.npy", np.array(self.delta_list))
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.filter_params).reshape(self.filter_params.shape), "coefficients.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.pi).reshape(self.pi.shape)/self.count, "pi.pt")
         torch.save(torch.nn.utils.convert_parameters.parameters_to_vector(self.delta).reshape(self.delta.shape)/self.count, "delta.pt")

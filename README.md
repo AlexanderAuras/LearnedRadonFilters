@@ -23,10 +23,6 @@ This repository contains the official pytorch implementation of *Convergent Data
 - Logging of results via tensorboard
 - Saving of results in *.pt* files
 
-<!--## License
-This repository is made publicly available under the ... license.
--->
-
 ## Dependencies
 Dependencies to execute the calculations and the used versions:
 - torch (1.12.1)
